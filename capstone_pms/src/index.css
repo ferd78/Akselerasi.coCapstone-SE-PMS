@@ -1,0 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@import "tailwindcss";
+
+
+@theme {
+    --font-sans: 'Nunito', sans-serif;
+    --color-primary: #F7F7F7;
+    --color-secondary: #18A4F5;
+    --color-tertiary: #757575;
+    --color-quartenary: #D9D9D9;
+}
+
