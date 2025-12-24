@@ -3,6 +3,8 @@ import { NavLink } from "react-router-dom";
 import { sidebarConfig } from "../config/sidebarConfig";
 import type { Role } from "../config/sidebarConfig";
 import { ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 interface SidebarProps {
   role: Role;
@@ -10,7 +12,7 @@ interface SidebarProps {
 
 const Sidebar = ({ role }: SidebarProps) => {
   const navItems = sidebarConfig[role];
-  
+  const { logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -61,7 +63,15 @@ const Sidebar = ({ role }: SidebarProps) => {
             </NavLink>
           );
         })}
+
+        
       </nav>
+
+      <button className="mt-auto flex items-center gap-3 px-4 py-2 rounded-xl text-red-500 hover:cursor-pointer hover:bg-red-100 hover:text-red-600" onClick={logout}>
+          <LogOut size={23} className="shrink-0"/>
+          {!isCollapsed && <span className="text-md font-semibold">Logout</span>}
+          
+        </button>
     </aside>
   );
 };
