@@ -1,0 +1,104 @@
+{
+  "users": [
+    {
+      "employeeId": "E2001",
+      "firstName": "Emily",
+      "lastName": "Rodriguez",
+      "email": "emily@company.com",
+      "roleId": "role_hr",
+      "departmentId": "dept_hr",
+      "managerId": "E1001",
+      "hireDate": "2023-02-01T00:00:00Z",
+      "status": "active",
+      "currentRating": 4.3,
+      "talentCategory": "meets",
+      "createdAt": "2025-12-01T00:00:00Z"
+    },
+    {
+      "employeeId": "E3001",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john@company.com",
+      "roleId": "role_employee",
+      "departmentId": "dept_engineering",
+      "managerId": "E2002",
+      "hireDate": "2022-06-10T00:00:00Z",
+      "status": "active",
+      "currentRating": 4.2,
+      "talentCategory": "exceeds",
+      "createdAt": "2025-12-01T00:00:00Z"
+    }
+  ],
+
+  "departments": [
+    {
+      "id": "dept_engineering",
+      "name": "Engineering",
+      "employeeCount": 65,
+      "avgRating": 4.2
+    },
+    {
+      "id": "dept_product",
+      "name": "Product",
+      "employeeCount": 28,
+      "avgRating": 4.1
+    }
+  ],
+
+  "reviewCycles": [
+    {
+      "id": "cycle_2025_q4",
+      "name": "2025 Q4",
+      "startDate": "2025-10-01T00:00:00Z",
+      "endDate": "2025-12-31T23:59:59Z",
+      "status": "open"
+    }
+  ],
+
+  "reviews": [
+    {
+      "employeeId": "E2001",
+      "cycleId": "cycle_2025_q4",
+      "reviewerId": "E1001",
+      "rating": 4.2,
+      "category": "meets",
+      "comments": "Consistent performer",
+      "status": "submitted",
+      "createdAt": "2025-11-15T12:00:00Z"
+    }
+  ],
+
+  "analytics": [
+    {
+      "id": "talent_distribution",
+      "totalEmployees": 200,
+      "counts": {
+        "outstanding": 15,
+        "exceeds": 45,
+        "meets": 120,
+        "needs_improvement": 18,
+        "unsatisfactory": 2
+      },
+      "updatedAt": "2025-12-01T00:00:00Z"
+    },
+    {
+      "id": "department_performance",
+      "departments": [
+        { "deptId": "dept_engineering", "name": "Engineering", "avgRating": 4.2, "employeeCount": 65 },
+        { "deptId": "dept_product", "name": "Product", "avgRating": 4.1, "employeeCount": 28 }
+      ],
+      "updatedAt": "2025-12-01T00:00:00Z"
+    }
+  ],
+
+  "rewardApprovals": [
+    {
+      "employeeId": "E3001",
+      "recommendedBy": "E2002",
+      "rewardType": "bonus",
+      "amount": 1000,
+      "status": "pending",
+      "createdAt": "2025-12-05T09:30:00Z"
+    }
+  ]
+}
