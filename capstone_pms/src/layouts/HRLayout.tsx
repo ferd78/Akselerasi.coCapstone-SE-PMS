@@ -1,10 +1,10 @@
 import { Outlet } from "react-router-dom"
 import Sidebar from "../components/Sidebar"
 
-const EmployeeDashboard = () => {
+const HRLayout = () => {
   return (
     <div className="flex">
-      <Sidebar role="employee" />
+      <Sidebar role="hr" />
       <main className="flex-1 p-4">
         <Outlet />
       </main>
@@ -12,4 +12,4 @@ const EmployeeDashboard = () => {
   )
 }
 
-export default EmployeeDashboard
+export default HRLayout

@@ -4,7 +4,8 @@ import {
   ChartNoAxesCombined, 
   NotebookPen, 
   ShieldUser, 
-  
+  Award,
+  User
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -37,6 +38,8 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "Performance Review", icon: ChartNoAxesCombined, path: "/employee/performance" },
     { label: "360 Feedback", icon: MessageCircle, path: "/employee/feedback" },
     { label: "Development Plans", icon: NotebookPen, path: "/employee/development" },
+    { label: "Rewards", icon: Award, path: "/employee/reward" },
+    { label: "Profile", icon: User, path: "/employee/profile"},
   ],
 
   manager: [
@@ -44,5 +47,6 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "Performance Review", icon: ChartNoAxesCombined, path: "/manager/performance" },
     { label: "360 Feedback", icon: MessageCircle, path: "/manager/feedback" },
     { label: "Development Overview", icon: NotebookPen, path: "/manager/development-overview" },
+    { label: "Team Reward", icon: Award, path: "/manager/team-reward" },
   ],
 };

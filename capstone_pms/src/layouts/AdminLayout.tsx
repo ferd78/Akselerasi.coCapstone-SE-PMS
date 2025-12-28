@@ -1,7 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
-const AdminDashboard = () => {
+const AdminLayout = () => {
   return (
     <div className="flex">
       <Sidebar role="admin" />
@@ -12,4 +12,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+export default AdminLayout;

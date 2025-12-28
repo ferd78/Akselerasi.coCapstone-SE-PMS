@@ -35,7 +35,7 @@ const LoginCard = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
-            className="p-3 bg-quartenary rounded-xl shadow-xs font-medium outline-none mb-4"
+            className="p-3 bg-quartenary rounded-xl shadow-xs font-md outline-none mb-4"
           />
           <div className="relative mb-4">
             <input
@@ -44,14 +44,14 @@ const LoginCard = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
               className="w-full p-3 pr-10 bg-quartenary rounded-xl shadow-xs 
-                        font-medium outline-none"
+                        font-md outline-none"
             />
 
             <button
               type="button"
               onClick={toggleVisibility}
               className="absolute right-3 top-1/2 -translate-y-1/2 
-                        text-gray-500 hover:text-gray-700"
+                        text-gray-500 hover:text-gray-700 hover:cursor-pointer"
             >
               {showPass ? <EyeClosed size={20} /> : <Eye size={20} />}
             </button>

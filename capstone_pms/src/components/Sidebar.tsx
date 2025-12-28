@@ -32,7 +32,7 @@ const Sidebar = ({ role }: SidebarProps) => {
         
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hover:bg-primary p-1.5 rounded-xl hover:cursor-pointer"
+          className="hover:bg-neutral-800 p-1.5 rounded-xl hover:cursor-pointer"
         >
           {isCollapsed ? <ArrowRightFromLine size={22} color="#4B5563"/> : <ArrowLeftFromLine size={22} color="#4B5563"/>}
         </button>
@@ -49,14 +49,14 @@ const Sidebar = ({ role }: SidebarProps) => {
               className={({ isActive }) => `
                 flex items-center gap-3 px-4 py-2 rounded-xl transition-colors
                 ${isActive 
-                  ? "bg-primary text-tertiary" 
-                  : "hover:bg-primary hover:text-tertiary text-gray-600"}
+                  ? "bg-secondary text-white" 
+                  : "hover:bg-primary hover:text-tertiary text-neutral-800"}
               `}
             >
               <Icon size={28} className="shrink-0" />
               
               {!isCollapsed && (
-                <span className="text-md font-semibold overflow-hidden">
+                <span className="text-md font-md overflow-hidden">
                   {item.label}
                 </span>
               )}
