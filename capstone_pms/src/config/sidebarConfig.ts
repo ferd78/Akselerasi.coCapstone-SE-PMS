@@ -48,5 +48,6 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "360 Feedback", icon: MessageCircle, path: "/manager/feedback" },
     { label: "Development Overview", icon: NotebookPen, path: "/manager/development-overview" },
     { label: "Team Reward", icon: Award, path: "/manager/team-reward" },
+    { label: "Profile", icon: User, path: "/manager/profile"},
   ],
 };

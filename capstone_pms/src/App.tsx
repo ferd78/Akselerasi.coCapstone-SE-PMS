@@ -10,8 +10,15 @@ import EmployeePerformanceReview from "./pages/employee/reviews";
 import EmployeeFeedbackRequests from "./pages/employee/feedback";
 import EmployeeRewards from "./pages/employee/rewards";
 import EmployeeProfile from "./pages/employee/profile";
+import ManagerDashboard from "./pages/manager/ManagerDashboard";
+import ManagerPerformanceReview from "./pages/manager/ManagerPerformanceReview";
+import Manager360Feedback from "./pages/manager/ManagerFeedback";
+import ManagerDevelopmentPlanning from "./pages/manager/ManagerDevelopment";
+import ManagerRewards from "./pages/manager/ManagerRewards";
+import ManagerProfile from "./pages/manager/ManagerProfile";
 import { AuthProvider } from "./contexts/AuthContext";
 import RequireAuth from "./components/RequireAuth";
+
 
 const App = () => {
   return (
@@ -51,11 +58,12 @@ const App = () => {
 
 
         <Route path="/manager" element={<RequireAuth><ManagerLayout /></RequireAuth>}>
-          <Route index element={<div>Manager Dashboard Home</div>} />
-          <Route path="performance" element={<div>Team Performance Review</div>} />
-          <Route path="feedback" element={<div>Team 360 Feedback</div>} />
-          <Route path="development-overview" element={<div>Employee Development Overview</div>} />
-          <Route path="team-reward" element={<div>Team Rewards</div>} />
+          <Route index element={<ManagerDashboard />} />
+          <Route path="performance" element={<ManagerPerformanceReview/>} />
+          <Route path="feedback" element={<Manager360Feedback />} />
+          <Route path="development-overview" element={<ManagerDevelopmentPlanning user={null}/>} />
+          <Route path="team-reward" element={<ManagerRewards/>} />
+          <Route path="profile" element={<ManagerProfile/>}/>
         </Route>
 
         

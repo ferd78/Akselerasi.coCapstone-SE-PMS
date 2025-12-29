@@ -5,7 +5,7 @@ const ManagerLayout = () => {
   return (
     <div className="flex">
       <Sidebar role="manager" />
-      <main className="flex-1 p-4">
+      <main className="flex-1 p-8">
         <Outlet />
       </main>
     </div>
