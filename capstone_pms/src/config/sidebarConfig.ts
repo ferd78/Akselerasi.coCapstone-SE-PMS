@@ -1,11 +1,15 @@
 import { 
   House, 
-  MessageCircle, 
-  ChartNoAxesCombined, 
-  NotebookPen, 
-  ShieldUser, 
-  Award,
-  User
+  Users,
+  Calendar,
+  Settings,
+  FileText,
+  User,
+  MessageCircle,
+  ChartNoAxesCombined,
+  NotebookPen,
+  ShieldUser,
+  Award
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -20,10 +24,11 @@ export interface SidebarItem {
 export const sidebarConfig: Record<Role, SidebarItem[]> = {
   admin: [
     { label: "Dashboard", icon: House, path: "/admin" },
-    { label: "Performance Review", icon: ChartNoAxesCombined, path: "/admin/performance" },
-    { label: "360 Feedback", icon: MessageCircle, path: "/admin/feedback" },
-    { label: "Development Plans", icon: NotebookPen, path: "/admin/development" },
-    { label: "Admin Settings", icon: ShieldUser, path: "/admin/settings" },
+    { label: "User Management", icon: Users, path: "/admin/users" },
+    { label: "Review Cycles", icon: Calendar, path: "/admin/performance" },
+    { label: "Configuration", icon: Settings, path: "/admin/settings" },
+    { label: "Audit Log", icon: FileText, path: "/admin/audit" },
+    { label: "Profile", icon: User, path: "/admin/profile" },
   ],
 
   hr: [
