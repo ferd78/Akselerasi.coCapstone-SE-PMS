@@ -8,7 +8,8 @@ import {
   MessageCircle,
   ChartNoAxesCombined,
   NotebookPen,
-  ShieldUser,
+  BarChart3,
+  PieChart,
   Award
 } from "lucide-react";
 
@@ -33,9 +34,11 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
 
   hr: [
     { label: "Dashboard", icon: House, path: "/hr" },
-    { label: "Performance Review", icon: ChartNoAxesCombined, path: "/hr/performance" },
-    { label: "360 Feedback", icon: MessageCircle, path: "/hr/feedback" },
+    { label: "Performance Oversight", icon: BarChart3, path: "/hr/performance" },
     { label: "Development Plans", icon: NotebookPen, path: "/hr/development" },
+    { label: "Talent Analytics", icon: PieChart, path: "/hr/analytics" },
+    { label: "Reward Approvals", icon: Award, path: "/hr/rewards" },
+    { label: "Profile", icon: User, path: "/hr/profile" },
   ],
 
   employee: [

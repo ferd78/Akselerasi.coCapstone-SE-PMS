@@ -22,6 +22,12 @@ import AdminReviewCycle from "./pages/admin/adminReviewCycle";
 import AdminConfiguration from "./pages/admin/adminConfiguration";
 import AdminAuditLog from "./pages/admin/adminAuditLog";
 import AdminProfile from "./pages/admin/adminProfile";
+import HRDashboard from "./pages/hr/hrDashboard";
+import HRPerformanceOversight from "./pages/hr/HRPeformanceOversight";
+import HRDevelopmentPlan from "./pages/hr/HRDevelopmentPlan";
+import HRTalentAnalytics from "./pages/hr/HRTalentAnalytics";
+import HRRewardApproval from "./pages/hr/HRRewardApproval";
+import HRProfile from "./pages/hr/HRProfile";
 import { AuthProvider } from "./contexts/AuthContext";
 import RequireAuth from "./components/RequireAuth";
 
@@ -59,10 +65,12 @@ const App = () => {
               </RequireAuth>
             }
           >
-            <Route index element={<div>HR Dashboard Home</div>} />
-            <Route path="performance" element={<div>HR Performance Review</div>} />
-            <Route path="feedback" element={<div>HR 360 Feedback</div>} />
-            <Route path="development" element={<div>HR Development Plans</div>} />
+            <Route index element={<HRDashboard />} />
+            <Route path="performance" element={<HRPerformanceOversight />} />
+            <Route path="development" element={<HRDevelopmentPlan />} />
+            <Route path="analytics" element={<HRTalentAnalytics />} />
+            <Route path="rewards" element={<HRRewardApproval /> } />
+            <Route path="profile" element={<HRProfile /> } />
           </Route>
 
           {/* EMPLOYEE */}
