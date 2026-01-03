@@ -3,11 +3,9 @@ import PendingFeedback from "../../components/PendingFeedback";
 import PerformanceSnapshot from "../../components/PerformanceSnapshot";
 import DevelopmentPlanSummary from "../../components/DevelopmentPlanSummary";
 
-
 const EmployeeDashboard = () => {
   return (
     <div className="max-w mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold">Welcome back!</h1>
         <p className="text-gray-600 mt-1">
