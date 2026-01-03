@@ -1,149 +1,150 @@
-#!/usr/bin/env node
-const admin = require('firebase-admin');
-const path = require('path');
-const fs = require('fs');
+const admin = require("firebase-admin");
+const fs = require("fs");
+const path = require("path");
 
-function usageAndExit() {
-  console.log('\nUsage: node scripts/seedFirestore.cjs [--serviceAccount /path/to/key.json] [--projectId your-project-id]');
-  console.log('Environment: set GOOGLE_APPLICATION_CREDENTIALS or pass --serviceAccount.');
+function getArg(flag, def = null) {
+  const idx = process.argv.indexOf(flag);
+  if (idx === -1) return def;
+  const next = process.argv[idx + 1];
+  if (!next || next.startsWith("--")) return def;
+  return next;
+}
+function hasFlag(flag) {
+  return process.argv.includes(flag);
+}
+
+const seedFile = getArg("--file", path.join(process.cwd(), "firestore-seed.json"));
+const reseed = hasFlag("--reseed");
+const serviceAccountPath = getArg("--serviceAccount", null);
+const projectId = getArg("--projectId", null);
+
+if (!serviceAccountPath) {
+  console.error("Missing --serviceAccount");
+  process.exit(1);
+}
+if (!fs.existsSync(seedFile)) {
+  console.error("Seed file not found:", seedFile);
   process.exit(1);
 }
 
-const args = process.argv.slice(2);
-let serviceAccountPath = null;
-let projectId = null;
-let resolvedProjectId = undefined;
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--serviceAccount' && args[i+1]) { serviceAccountPath = args[i+1]; i++; }
-  else if (args[i] === '--projectId' && args[i+1]) { projectId = args[i+1]; i++; }
-  else if (args[i] === '--useEmulator') { process.env.USE_FIRESTORE_EMULATOR = '1'; }
-  else if (args[i] === '--emulatorHost' && args[i+1]) { process.env.FIRESTORE_EMULATOR_HOST = args[i+1]; i++; }
-  else if (args[i] === '--help' || args[i] === '-h') { usageAndExit(); }
+const saAbs = path.isAbsolute(serviceAccountPath)
+  ? serviceAccountPath
+  : path.join(process.cwd(), serviceAccountPath);
+
+if (!fs.existsSync(saAbs)) {
+  console.error("Service account JSON not found:", saAbs);
+  process.exit(1);
 }
 
-if (process.env.USE_FIRESTORE_EMULATOR) {
-  // Use Firestore emulator. Ensure host is set or default to localhost:8080
-  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
-  console.log('Using Firestore emulator at', process.env.FIRESTORE_EMULATOR_HOST);
-}
-
-if (serviceAccountPath) {
-  const absPath = path.isAbsolute(serviceAccountPath) ? serviceAccountPath : path.join(process.cwd(), serviceAccountPath);
-  if (!fs.existsSync(absPath)) {
-    console.error('Service account file not found:', absPath);
-    process.exit(1);
-  }
-  // Load service account and use its project_id as a sensible default
-  let sa;
-  try {
-    sa = require(absPath);
-  } catch (e) {
-    console.error('Failed to load service account JSON:', e.message);
-    process.exit(1);
-  }
-  resolvedProjectId = projectId || sa.project_id || undefined;
-  console.log('Service account loaded:');
-  console.log('- project_id:', sa.project_id);
-  console.log('- client_email:', sa.client_email);
-  if (!resolvedProjectId && !process.env.USE_FIRESTORE_EMULATOR) {
-    console.warn('Warning: no projectId provided and service account has no project_id. Calls may fail.');
-  }
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(sa),
-      projectId: resolvedProjectId,
-    });
-  } catch (e) {
-    console.error('Failed to initialize Firebase Admin SDK:', e.message);
-    process.exit(1);
-  }
-} else {
-  // Use Application Default Credentials (ADC)
-  // For emulator use ADC but ensure projectId is set (emulator ignores credentials)
-  resolvedProjectId = projectId || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'demo-project';
-  admin.initializeApp({ credential: admin.credential.applicationDefault(), projectId: resolvedProjectId });
-}
+admin.initializeApp({
+  credential: admin.credential.cert(require(saAbs)),
+  ...(projectId ? { projectId } : {}),
+});
 
 const db = admin.firestore();
-const seedPath = path.join(__dirname, '..', 'firestore-seed.json');
-if (!fs.existsSync(seedPath)) {
-  console.error('Seed file not found at', seedPath);
-  process.exit(1);
+const { parse } = require("jsonc-parser");
+const seedRaw = fs.readFileSync(seedFile, "utf8");
+const seed = parse(seedRaw);
+
+function isDateString(v) {
+  if (typeof v !== "string") return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return true;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/.test(v)) return true;
+  return false;
 }
-
-const raw = require(seedPath);
-
-function isIsoDateString(v) {
-  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v);
+function toTimestamp(v) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    return admin.firestore.Timestamp.fromDate(new Date(`${v}T00:00:00Z`));
+  }
+  return admin.firestore.Timestamp.fromDate(new Date(v));
 }
-
-function convertValues(obj) {
-  if (Array.isArray(obj)) return obj.map(convertValues);
-  if (obj && typeof obj === 'object') {
+function convertDatesDeep(x) {
+  if (Array.isArray(x)) return x.map(convertDatesDeep);
+  if (x && typeof x === "object") {
     const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-      out[k] = convertValues(v);
-    }
+    for (const [k, v] of Object.entries(x)) out[k] = convertDatesDeep(v);
     return out;
   }
-  if (isIsoDateString(obj)) return admin.firestore.Timestamp.fromDate(new Date(obj));
-  return obj;
+  if (isDateString(x)) return toTimestamp(x);
+  return x;
 }
 
-async function seedCollection(collectionName, docs) {
-  if (!Array.isArray(docs)) return;
-  console.log(`Seeding collection: ${collectionName} (${docs.length} documents)`);
-  const BATCH_SIZE = 400; // keep below 500
-  let batch = db.batch();
-  let opCount = 0;
-  let written = 0;
+function isArrayOfObjects(v) {
+  return Array.isArray(v) && v.length > 0 && v.every((it) => it && typeof it === "object" && !Array.isArray(it));
+}
+function chooseDocId(obj, fallbackIndex) {
+  const candidates = [obj.id, obj.docId].filter(Boolean);
+  return candidates.length ? String(candidates[0]) : `auto_${fallbackIndex}`;
+}
 
-  async function commitBatch() {
-    if (opCount === 0) return;
-    await batch.commit();
-    batch = db.batch();
-    opCount = 0;
+async function deleteCollectionRecursive(colRef, batchSize = 200) {
+  const snap = await colRef.limit(batchSize).get();
+  if (snap.empty) return;
+
+  for (const docSnap of snap.docs) {
+    const subs = await docSnap.ref.listCollections();
+    for (const sub of subs) await deleteCollectionRecursive(sub, batchSize);
+    await docSnap.ref.delete();
+  }
+  if (snap.size >= batchSize) await deleteCollectionRecursive(colRef, batchSize);
+}
+
+async function writeDocWithSubcollections(docRef, data) {
+  const body = {};
+  const subs = [];
+
+  for (const [k, v] of Object.entries(data)) {
+    if (isArrayOfObjects(v)) subs.push({ name: k, docs: v });
+    else body[k] = v;
   }
 
-  for (const doc of docs) {
-    const copy = Object.assign({}, doc);
-    // Prefer explicit `uid` for the document ID (useful for users/{uid}).
-    const idCandidates = [copy.uid, copy.id, copy.employeeId, copy.employeeID, copy.employee_id];
-    let docId = idCandidates.find(Boolean);
-    if (docId && copy.id) delete copy.id;
-    if (docId && copy.uid) delete copy.uid;
+  await docRef.set(convertDatesDeep(body), { merge: false });
 
-    const transformed = convertValues(copy);
-
-    const ref = docId ? db.collection(collectionName).doc(String(docId)) : db.collection(collectionName).doc();
-    batch.set(ref, transformed, { merge: false });
-    opCount++;
-    written++;
-
-    if (opCount >= BATCH_SIZE) {
-      await commitBatch();
+  for (const sub of subs) {
+    const subRef = docRef.collection(sub.name);
+    for (let i = 0; i < sub.docs.length; i++) {
+      const child = { ...sub.docs[i] };
+      const childId = chooseDocId(child, i);
+      delete child.id;
+      await writeDocWithSubcollections(subRef.doc(childId), child);
     }
   }
-  await commitBatch();
-  console.log(`Seeded ${written} docs into ${collectionName}`);
+}
+
+async function seedTopCollection(name, docs) {
+  if (!Array.isArray(docs)) return;
+
+  console.log(`\nSeeding ${name} (${docs.length})`);
+  const colRef = db.collection(name);
+
+  if (reseed) {
+    console.log(`--reseed: deleting ${name} recursively...`);
+    await deleteCollectionRecursive(colRef);
+  }
+
+  for (let i = 0; i < docs.length; i++) {
+    const item = { ...docs[i] };
+    const docId = chooseDocId(item, i);
+    delete item.id;
+    await writeDocWithSubcollections(colRef.doc(docId), item);
+    console.log(`  ✔ ${name}/${docId}`);
+  }
 }
 
 (async () => {
   try {
-    for (const [collection, docs] of Object.entries(raw)) {
-      await seedCollection(collection, docs);
+    const keys = Object.keys(seed);
+
+    keys.sort((a, b) => (a === "users" ? -1 : b === "users" ? 1 : 0));
+
+    for (const name of keys) {
+      await seedTopCollection(name, seed[name]);
     }
-    console.log('All seed operations completed.');
+
+    console.log("\n Seed complete (legacy IDs mode).");
     process.exit(0);
   } catch (err) {
-    console.error('Seeding error:', err && err.message ? err.message : err);
-    if (err && err.code === 5) {
-      console.error('\nCommon causes for code=5 NOT_FOUND:');
-      console.error('- The provided projectId is incorrect (typo like --projecId).');
-      console.error('- Firestore API is not enabled / Firestore DB not provisioned for the project.');
-      console.error('- Service account does not belong to the target project.');
-      console.error('Check your `--projectId` spelling and that Firestore is enabled in the Firebase console.');
-    }
+    console.error("\n Error:", err?.message || err);
     process.exit(2);
   }
 })();
