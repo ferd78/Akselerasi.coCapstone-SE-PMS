@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { Eye, EyeClosed } from "lucide-react";
 
 const LoginCard = () => {
@@ -20,7 +21,41 @@ const LoginCard = () => {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate("/hr");
+      const currentUser = auth.currentUser;
+      let role: string | null = null;
+      try {
+        if (currentUser) {
+          const uid = currentUser.uid;
+          const userDocRef = doc(db, "users", uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data() as any;
+            role = data.role || data.userRole || null;
+          } else if (currentUser.email) {
+            const usersRef = collection(db, "users");
+            const q = query(usersRef, where("email", "==", currentUser.email));
+            const qSnap = await getDocs(q);
+            if (!qSnap.empty) {
+              const d = qSnap.docs[0].data() as any;
+              role = d.role || d.userRole || null;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to resolve user role:", err);
+      }
+
+      const routeForRole = (r: string | null) => {
+        if (!r) return "/employee";
+        const rr = String(r).toLowerCase();
+        if (rr === "employee" || rr === "emp") return "/employee";
+        if (rr === "manager") return "/manager";
+        if (rr === "hr" || rr === "human_resources" || rr === "human-resources") return "/hr";
+        if (rr === "admin") return "/admin";
+        return "/employee";
+      };
+
+      navigate(routeForRole(role));
     } catch (err: any) {
       setError(err?.message || "Failed to sign in");
     }
