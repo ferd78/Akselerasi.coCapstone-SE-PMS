@@ -1,104 +1,479 @@
 {
   "users": [
+    { "id": "emp1", "name": "Sarah Johnson", "email": "sarah.johnson@company.com", "role": "employee", "department": "Engineering", "avatar": "SJ", "password": "Password123!" },
+    { "id": "mgr1", "name": "Michael Chen", "email": "michael.chen@company.com", "role": "manager", "department": "Engineering", "avatar": "MC", "password": "Password123!" },
+    { "id": "hr1", "name": "Emily Rodriguez", "email": "emily.rodriguez@company.com", "role": "hr", "department": "Human Resources", "avatar": "ER", "password": "Password123!" },
+    { "id": "admin1", "name": "David Kim", "email": "david.kim@company.com", "role": "admin", "department": "IT", "avatar": "DK", "password": "Password123!" },
+    { "id": "emp2", "name": "James Wilson", "email": "james.wilson@company.com", "role": "employee", "department": "Engineering", "avatar": "JW", "password": "Password123!" },
+    { "id": "emp3", "name": "Lisa Martinez", "email": "lisa.martinez@company.com", "role": "employee", "department": "Engineering", "avatar": "LM", "password": "Password123!" },
+    { "id": "emp4", "name": "Robert Taylor", "email": "robert.taylor@company.com", "role": "employee", "department": "Engineering", "avatar": "RT", "password": "Password123!" }
+  ],
+
+  "teamMembers": [
+    { "id": "emp1", "name": "Sarah Johnson", "department": "Engineering", "position": "Senior Developer", "avatar": "SJ", "performanceOutcome": "Exceeds Expectations", "reviewStatus": "pending", "lastReviewDate": "2024-12-15" },
+    { "id": "emp2", "name": "James Wilson", "department": "Engineering", "position": "Frontend Developer", "avatar": "JW", "performanceOutcome": "Meets Expectations", "reviewStatus": "completed", "lastReviewDate": "2024-12-10" },
+    { "id": "emp3", "name": "Lisa Martinez", "department": "Engineering", "position": "Backend Developer", "avatar": "LM", "performanceOutcome": "Outstanding", "reviewStatus": "completed", "lastReviewDate": "2024-12-12" },
+    { "id": "emp4", "name": "Robert Taylor", "department": "Engineering", "position": "DevOps Engineer", "avatar": "RT", "performanceOutcome": "Meets Expectations", "reviewStatus": "in_progress", "lastReviewDate": "2024-11-20" }
+  ],
+
+  "feedbackRequests": [
     {
-      "employeeId": "E2001",
-      "firstName": "Emily",
-      "lastName": "Rodriguez",
-      "email": "emily@company.com",
-      "roleId": "role_hr",
-      "departmentId": "dept_hr",
-      "managerId": "E1001",
-      "hireDate": "2023-02-01T00:00:00Z",
-      "status": "active",
-      "currentRating": 4.3,
-      "talentCategory": "meets",
-      "createdAt": "2025-12-01T00:00:00Z"
+      "id": "fb1",
+      "revieweeId": "emp1",
+      "employeeName": "Sarah Johnson",
+      "requestedById": "mgr1",
+      "requestedBy": "Michael Chen",
+      "requestedByRole": "Manager",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-01T09:00:00Z"
     },
     {
-      "employeeId": "E3001",
-      "firstName": "John",
-      "lastName": "Doe",
-      "email": "john@company.com",
-      "roleId": "role_employee",
-      "departmentId": "dept_engineering",
-      "managerId": "E2002",
-      "hireDate": "2022-06-10T00:00:00Z",
-      "status": "active",
-      "currentRating": 4.2,
-      "talentCategory": "exceeds",
-      "createdAt": "2025-12-01T00:00:00Z"
+      "id": "fb2",
+      "revieweeId": "emp1",
+      "employeeName": "Sarah Johnson",
+      "requestedById": "emp2",
+      "requestedBy": "James Wilson",
+      "requestedByRole": "Peer",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-02T10:00:00Z"
+    },
+    {
+      "id": "fb7",
+      "revieweeId": "emp1",
+      "employeeName": "Sarah Johnson",
+      "requestedById": "emp4",
+      "requestedBy": "Robert Taylor",
+      "requestedByRole": "Peer",
+      "dueDate": "2024-12-28",
+      "status": "completed",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-03T09:45:00Z"
+    },
+
+    {
+      "id": "fb3",
+      "revieweeId": "emp3",
+      "employeeName": "Lisa Martinez",
+      "requestedById": "mgr1",
+      "requestedBy": "Michael Chen",
+      "requestedByRole": "Manager",
+      "dueDate": "2024-12-30",
+      "status": "completed",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-05T11:00:00Z"
+    },
+    {
+      "id": "fb4",
+      "revieweeId": "emp3",
+      "employeeName": "Lisa Martinez",
+      "requestedById": "emp1",
+      "requestedBy": "Sarah Johnson",
+      "requestedByRole": "Peer",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-03T09:30:00Z"
+    },
+    {
+      "id": "fb8",
+      "revieweeId": "emp3",
+      "employeeName": "Lisa Martinez",
+      "requestedById": "emp2",
+      "requestedBy": "James Wilson",
+      "requestedByRole": "Peer",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-04T10:15:00Z"
+    },
+
+    {
+      "id": "fb6",
+      "revieweeId": "emp2",
+      "employeeName": "James Wilson",
+      "requestedById": "emp1",
+      "requestedBy": "Sarah Johnson",
+      "requestedByRole": "Peer",
+      "dueDate": "2024-12-20",
+      "status": "completed",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-10T08:00:00Z"
+    },
+    {
+      "id": "fb9",
+      "revieweeId": "emp2",
+      "employeeName": "James Wilson",
+      "requestedById": "mgr1",
+      "requestedBy": "Michael Chen",
+      "requestedByRole": "Manager",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-06T09:00:00Z"
+    },
+
+    {
+      "id": "fb5",
+      "revieweeId": "emp4",
+      "employeeName": "Robert Taylor",
+      "requestedById": "emp1",
+      "requestedBy": "Sarah Johnson",
+      "requestedByRole": "Peer",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-04T10:15:00Z"
+    },
+    {
+      "id": "fb10",
+      "revieweeId": "emp4",
+      "employeeName": "Robert Taylor",
+      "requestedById": "mgr1",
+      "requestedBy": "Michael Chen",
+      "requestedByRole": "Manager",
+      "dueDate": "2024-12-28",
+      "status": "completed",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-02T11:30:00Z"
+    },
+
+    {
+      "id": "fb11",
+      "revieweeId": "hr1",
+      "employeeName": "Emily Rodriguez",
+      "requestedById": "mgr1",
+      "requestedBy": "Michael Chen",
+      "requestedByRole": "Manager",
+      "dueDate": "2024-12-28",
+      "status": "pending",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-07T10:00:00Z"
+    },
+    {
+      "id": "fb12",
+      "revieweeId": "admin1",
+      "employeeName": "David Kim",
+      "requestedById": "hr1",
+      "requestedBy": "Emily Rodriguez",
+      "requestedByRole": "HR",
+      "dueDate": "2024-12-28",
+      "status": "completed",
+      "cycleType": "360 Feedback - Q4 2024",
+      "isAnonymous": true,
+      "createdAt": "2024-12-07T10:30:00Z"
     }
   ],
 
-  "departments": [
+  "performanceReviews": [
     {
-      "id": "dept_engineering",
-      "name": "Engineering",
-      "employeeCount": 65,
-      "avgRating": 4.2
+      "id": "perf_emp1_q4_2024",
+      "employeeId": "emp1",
+      "period": "Q4 2024",
+      "overallOutcome": "Exceeds Expectations",
+      "managerEvaluation": {
+        "summary": "Sarah has consistently delivered high-quality work and exceeded expectations in all key areas.",
+        "strengths": ["Excellent problem-solving skills", "Strong collaboration", "Proactive improvements", "Mentors others"],
+        "areasForDevelopment": ["Public speaking", "Strategic planning"]
+      },
+      "feedback360": {
+        "totalResponses": 8,
+        "highlights": [
+          { "category": "Technical Excellence", "score": 4.5, "feedback": "Exceptional technical skills." },
+          { "category": "Collaboration", "score": 4.7, "feedback": "Very supportive teammate." },
+          { "category": "Leadership", "score": 4.3, "feedback": "Strong leadership potential." },
+          { "category": "Communication", "score": 4.0, "feedback": "Clear in writing; improve presentations." }
+        ]
+      },
+      "previousReviews": [
+        { "period": "Q3 2024", "outcome": "Exceeds Expectations" },
+        { "period": "Q2 2024", "outcome": "Meets Expectations" }
+      ],
+      "createdAt": "2024-12-20T08:00:00Z"
+    },
+
+    {
+      "id": "perf_emp2_q4_2024",
+      "employeeId": "emp2",
+      "period": "Q4 2024",
+      "overallOutcome": "Meets Expectations",
+      "managerEvaluation": {
+        "summary": "James delivered consistently and collaborated well across the team.",
+        "strengths": ["Reliable delivery", "Good UI implementation", "Responsive to feedback"],
+        "areasForDevelopment": ["More proactive ownership", "Improve estimation accuracy"]
+      },
+      "feedback360": {
+        "totalResponses": 6,
+        "highlights": [
+          { "category": "Technical Excellence", "score": 4.1, "feedback": "Solid frontend output." },
+          { "category": "Collaboration", "score": 4.4, "feedback": "Helpful during sprints." },
+          { "category": "Leadership", "score": 3.7, "feedback": "Can lead small initiatives more." },
+          { "category": "Communication", "score": 4.0, "feedback": "Clear day-to-day communication." }
+        ]
+      },
+      "previousReviews": [{ "period": "Q3 2024", "outcome": "Meets Expectations" }],
+      "createdAt": "2024-12-18T08:00:00Z"
+    },
+
+    {
+      "id": "perf_emp3_q4_2024",
+      "employeeId": "emp3",
+      "period": "Q4 2024",
+      "overallOutcome": "Outstanding",
+      "managerEvaluation": {
+        "summary": "Lisa delivered critical backend improvements and raised system reliability significantly.",
+        "strengths": ["System design", "High-quality delivery", "Mentors peers", "Strong ownership"],
+        "areasForDevelopment": ["Share design decisions earlier", "Document architecture more"]
+      },
+      "feedback360": {
+        "totalResponses": 7,
+        "highlights": [
+          { "category": "Technical Excellence", "score": 4.8, "feedback": "Very strong backend skills." },
+          { "category": "Collaboration", "score": 4.5, "feedback": "Great pairing and reviews." },
+          { "category": "Leadership", "score": 4.4, "feedback": "Guides technical decisions well." },
+          { "category": "Communication", "score": 4.2, "feedback": "Clear, could share earlier." }
+        ]
+      },
+      "previousReviews": [{ "period": "Q3 2024", "outcome": "Exceeds Expectations" }],
+      "createdAt": "2024-12-19T08:00:00Z"
+    },
+
+    {
+      "id": "perf_emp4_q4_2024",
+      "employeeId": "emp4",
+      "period": "Q4 2024",
+      "overallOutcome": "Meets Expectations",
+      "managerEvaluation": {
+        "summary": "Robert improved deployment stability and tightened monitoring.",
+        "strengths": ["DevOps reliability", "Automation mindset", "Incident response"],
+        "areasForDevelopment": ["Cross-team visibility", "Documentation consistency"]
+      },
+      "feedback360": {
+        "totalResponses": 5,
+        "highlights": [
+          { "category": "Technical Excellence", "score": 4.2, "feedback": "Strong infrastructure skills." },
+          { "category": "Collaboration", "score": 4.0, "feedback": "Works well with engineering." },
+          { "category": "Leadership", "score": 3.8, "feedback": "Can lead more initiatives." },
+          { "category": "Communication", "score": 3.9, "feedback": "Good but can be more proactive." }
+        ]
+      },
+      "previousReviews": [{ "period": "Q3 2024", "outcome": "Meets Expectations" }],
+      "createdAt": "2024-12-17T08:00:00Z"
+    }
+  ],
+
+  "reviewSnapshots": [
+    { "id": "snapshot_emp1_q4_2024", "employeeId": "emp1", "cycleId": "Q4 2024", "finalScore": 82, "overallOutcome": "Exceeds Expectations", "updatedAt": "2024-12-20T08:00:00Z" },
+    { "id": "snapshot_emp2_q4_2024", "employeeId": "emp2", "cycleId": "Q4 2024", "finalScore": 76, "overallOutcome": "Meets Expectations", "updatedAt": "2024-12-18T08:00:00Z" },
+    { "id": "snapshot_emp3_q4_2024", "employeeId": "emp3", "cycleId": "Q4 2024", "finalScore": 90, "overallOutcome": "Outstanding", "updatedAt": "2024-12-19T08:00:00Z" },
+    { "id": "snapshot_emp4_q4_2024", "employeeId": "emp4", "cycleId": "Q4 2024", "finalScore": 78, "overallOutcome": "Meets Expectations", "updatedAt": "2024-12-17T08:00:00Z" }
+  ],
+
+  "developmentPlans": [
+    {
+      "id": "dp_emp1",
+      "employeeId": "emp1",
+      "employeeName": "Sarah Johnson",
+      "status": "active",
+      "createdDate": "2024-12-15",
+      "lastUpdated": "2024-12-20",
+      "focusAreas": [
+        {
+          "id": "fa1",
+          "title": "Public Speaking & Presentation Skills",
+          "description": "Develop confidence and skills in presenting technical concepts.",
+          "priority": "high",
+          "actionItems": [
+            { "id": "ai1", "title": "Attend Presentation Workshop", "description": "Complete internal workshop", "dueDate": "2025-01-30", "status": "in_progress", "owner": "Sarah Johnson", "progress": 60 }
+          ]
+        }
+      ]
     },
     {
-      "id": "dept_product",
-      "name": "Product",
-      "employeeCount": 28,
-      "avgRating": 4.1
+      "id": "dp_emp2",
+      "employeeId": "emp2",
+      "employeeName": "James Wilson",
+      "status": "active",
+      "createdDate": "2024-12-12",
+      "lastUpdated": "2024-12-20",
+      "focusAreas": [
+        {
+          "id": "fa2",
+          "title": "Ownership & Initiative",
+          "description": "Take ownership of at least 1 cross-team feature.",
+          "priority": "medium",
+          "actionItems": [
+            { "id": "ai2", "title": "Lead small feature rollout", "description": "Own rollout planning and delivery", "dueDate": "2025-02-15", "status": "not_started", "owner": "James Wilson", "progress": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dp_emp3",
+      "employeeId": "emp3",
+      "employeeName": "Lisa Martinez",
+      "status": "active",
+      "createdDate": "2024-12-10",
+      "lastUpdated": "2024-12-19",
+      "focusAreas": [
+        {
+          "id": "fa3",
+          "title": "Architecture Documentation",
+          "description": "Improve documentation for key services and design decisions.",
+          "priority": "high",
+          "actionItems": [
+            { "id": "ai3", "title": "Write service RFC templates", "description": "Create RFC template + examples", "dueDate": "2025-01-20", "status": "in_progress", "owner": "Lisa Martinez", "progress": 40 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dp_emp4",
+      "employeeId": "emp4",
+      "employeeName": "Robert Taylor",
+      "status": "active",
+      "createdDate": "2024-12-08",
+      "lastUpdated": "2024-12-17",
+      "focusAreas": [
+        {
+          "id": "fa4",
+          "title": "Cross-team Communication",
+          "description": "Give weekly infra updates and improve visibility.",
+          "priority": "medium",
+          "actionItems": [
+            { "id": "ai4", "title": "Weekly infra update posts", "description": "Post summary to engineering channel", "dueDate": "2025-01-10", "status": "in_progress", "owner": "Robert Taylor", "progress": 30 }
+          ]
+        }
+      ]
     }
+  ],
+
+  "rewards": [
+    { "id": "r1", "employeeId": "emp1", "type": "Spot Bonus", "amount": "Rp 15.000.000", "reason": "Outstanding project delivery", "awardedBy": "Michael Chen", "approvedBy": "Emily Rodriguez", "date": "2024-11-15", "status": "approved", "description": "Exceptional work on the customer portal redesign, delivered ahead of schedule with zero critical bugs." },
+    { "id": "r2", "employeeId": "emp1", "type": "Recognition Award", "amount": "Rp 0", "reason": "Team Player of the Quarter", "awardedBy": "Michael Chen", "approvedBy": "Emily Rodriguez", "date": "2024-10-01", "status": "approved", "description": "Consistently went above and beyond to help team members and foster collaboration." },
+    { "id": "r3", "employeeId": "emp1", "type": "Performance Bonus", "amount": "Rp 35.000.000", "reason": "Annual Performance Bonus", "awardedBy": "Michael Chen", "approvedBy": "Emily Rodriguez", "date": "2024-12-20", "status": "pending", "description": "Year-end performance bonus for exceeding all quarterly goals." },
+    { "id": "r4", "employeeId": "emp2", "type": "Recognition Award", "amount": "Rp 0", "reason": "Great UI polish", "awardedBy": "Sarah Johnson", "approvedBy": "Emily Rodriguez", "date": "2024-11-05", "status": "approved", "description": "Improved usability and fixed multiple UI issues before release." },
+    { "id": "r5", "employeeId": "emp2", "type": "Spot Bonus", "amount": "Rp 7.500.000", "reason": "Sprint delivery", "awardedBy": "Michael Chen", "approvedBy": "Emily Rodriguez", "date": "2024-12-02", "status": "pending", "description": "Strong sprint delivery during peak workload." },
+    { "id": "r6", "employeeId": "emp3", "type": "Spot Bonus", "amount": "Rp 20.000.000", "reason": "Reliability improvements", "awardedBy": "Michael Chen", "approvedBy": "Emily Rodriguez", "date": "2024-11-25", "status": "approved", "description": "Reduced incident rate significantly by improving service resilience." },
+    { "id": "r7", "employeeId": "emp4", "type": "Recognition Award", "amount": "Rp 0", "reason": "Infra automation", "awardedBy": "Michael Chen", "approvedBy": "Emily Rodriguez", "date": "2024-10-20", "status": "approved", "description": "Automated deployment pipeline and improved rollback safety." }
   ],
 
   "reviewCycles": [
-    {
-      "id": "cycle_2025_q4",
-      "name": "2025 Q4",
-      "startDate": "2025-10-01T00:00:00Z",
-      "endDate": "2025-12-31T23:59:59Z",
-      "status": "open"
-    }
-  ],
-
-  "reviews": [
-    {
-      "employeeId": "E2001",
-      "cycleId": "cycle_2025_q4",
-      "reviewerId": "E1001",
-      "rating": 4.2,
-      "category": "meets",
-      "comments": "Consistent performer",
-      "status": "submitted",
-      "createdAt": "2025-11-15T12:00:00Z"
-    }
+    { "id": "rc1", "name": "Q4 2024 Performance Review", "type": "Quarterly Review", "startDate": "2024-12-01", "endDate": "2024-12-31", "status": "active", "participants": 156, "completed": 89 },
+    { "id": "rc2", "name": "360 Feedback - Q4 2024", "type": "360 Feedback", "startDate": "2024-12-10", "endDate": "2024-12-28", "status": "active", "participants": 134, "completed": 67 },
+    { "id": "rc3", "name": "Annual Review 2024", "type": "Annual Review", "startDate": "2025-01-01", "endDate": "2025-01-31", "status": "scheduled", "participants": 0, "completed": 0 }
   ],
 
   "analytics": [
     {
-      "id": "talent_distribution",
-      "totalEmployees": 200,
-      "counts": {
-        "outstanding": 15,
-        "exceeds": 45,
-        "meets": 120,
-        "needs_improvement": 18,
-        "unsatisfactory": 2
-      },
-      "updatedAt": "2025-12-01T00:00:00Z"
-    },
-    {
-      "id": "department_performance",
-      "departments": [
-        { "deptId": "dept_engineering", "name": "Engineering", "avgRating": 4.2, "employeeCount": 65 },
-        { "deptId": "dept_product", "name": "Product", "avgRating": 4.1, "employeeCount": 28 }
+      "id": "singleton",
+      "talentDistribution": { "outstanding": 15, "exceeds": 45, "meets": 120, "needs_improvement": 18, "unsatisfactory": 2 },
+      "performanceTrends": [
+        { "month": "Jul", "outstanding": 12, "exceeds": 38, "meets": 125, "needs_improvement": 20, "unsatisfactory": 5 },
+        { "month": "Aug", "outstanding": 13, "exceeds": 41, "meets": 122, "needs_improvement": 19, "unsatisfactory": 5 },
+        { "month": "Sep", "outstanding": 14, "exceeds": 43, "meets": 121, "needs_improvement": 18, "unsatisfactory": 4 },
+        { "month": "Oct", "outstanding": 14, "exceeds": 44, "meets": 120, "needs_improvement": 19, "unsatisfactory": 3 },
+        { "month": "Nov", "outstanding": 15, "exceeds": 44, "meets": 121, "needs_improvement": 18, "unsatisfactory": 2 },
+        { "month": "Dec", "outstanding": 15, "exceeds": 45, "meets": 120, "needs_improvement": 18, "unsatisfactory": 2 }
       ],
-      "updatedAt": "2025-12-01T00:00:00Z"
+      "departmentPerformance": [
+        { "department": "Engineering", "avgScore": 4.2, "employees": 65 },
+        { "department": "Product", "avgScore": 4.1, "employees": 28 },
+        { "department": "Sales", "avgScore": 3.9, "employees": 42 },
+        { "department": "Marketing", "avgScore": 4.0, "employees": 22 },
+        { "department": "Customer Success", "avgScore": 4.3, "employees": 31 },
+        { "department": "Operations", "avgScore": 3.8, "employees": 12 }
+      ]
     }
   ],
 
-  "rewardApprovals": [
+  "auditLogs": [
+    { "id": "al1", "timestamp": "2024-12-22 10:35:22", "user": "Michael Chen", "action": "EVALUATION_SUBMITTED", "details": "Submitted performance evaluation for Sarah Johnson", "ipAddress": "192.168.1.45" },
+    { "id": "al2", "timestamp": "2024-12-22 09:15:10", "user": "Emily Rodriguez", "action": "REWARD_APPROVED", "details": "Approved spot bonus of Rp 15.000.000 for Sarah Johnson", "ipAddress": "192.168.1.52" },
+    { "id": "al3", "timestamp": "2024-12-22 08:42:33", "user": "David Kim", "action": "USER_CREATED", "details": "Created new user account: robert.taylor@company.com", "ipAddress": "192.168.1.100" },
+    { "id": "al4", "timestamp": "2024-12-21 16:28:45", "user": "Michael Chen", "action": "FEEDBACK_REQUEST_SENT", "details": "Initiated 360 feedback cycle for multiple team members", "ipAddress": "192.168.1.45" },
+    { "id": "al5", "timestamp": "2024-12-21 14:12:18", "user": "Sarah Johnson", "action": "FEEDBACK_SUBMITTED", "details": "Submitted anonymous feedback for peer review", "ipAddress": "192.168.1.73" }
+  ],
+
+  "feedbackResponses": [
     {
-      "employeeId": "E3001",
-      "recommendedBy": "E2002",
-      "rewardType": "bonus",
-      "amount": 1000,
-      "status": "pending",
-      "createdAt": "2025-12-05T09:30:00Z"
+      "id": "fr_mgr_emp3_q4",
+      "requestId": "fb3",
+      "revieweeId": "emp3",
+      "reviewerId": "mgr1",
+      "reviewerRole": "Manager",
+      "cycleType": "360 Feedback - Q4 2024",
+      "submittedAt": "2024-12-20T10:00:00Z",
+      "scores": { "technical": 5, "collaboration": 5, "leadership": 4, "communication": 4 },
+      "strengths": ["Strong ownership", "Excellent system thinking"],
+      "improvements": ["Share decisions earlier"],
+      "comment": "Lisa raised reliability and delivered consistently."
+    },
+    {
+      "id": "fr_robert_emp1_q4",
+      "requestId": "fb7",
+      "revieweeId": "emp1",
+      "reviewerId": "emp4",
+      "reviewerRole": "Peer",
+      "cycleType": "360 Feedback - Q4 2024",
+      "submittedAt": "2024-12-21T09:00:00Z",
+      "scores": { "technical": 5, "collaboration": 4, "leadership": 4, "communication": 4 },
+      "strengths": ["Fast problem solving", "Great teamwork"],
+      "improvements": ["More visibility to wider org"],
+      "comment": "Sarah is dependable and consistent."
+    },
+    {
+      "id": "fr_mgr_emp4_q4",
+      "requestId": "fb10",
+      "revieweeId": "emp4",
+      "reviewerId": "mgr1",
+      "reviewerRole": "Manager",
+      "cycleType": "360 Feedback - Q4 2024",
+      "submittedAt": "2024-12-22T11:00:00Z",
+      "scores": { "technical": 4, "collaboration": 4, "leadership": 3, "communication": 4 },
+      "strengths": ["Automation mindset", "Strong infra work"],
+      "improvements": ["Document changes consistently"],
+      "comment": "Robert improved deployment reliability."
+    },
+    {
+      "id": "fr_sarah_emp2_q4",
+      "requestId": "fb6",
+      "revieweeId": "emp2",
+      "reviewerId": "emp1",
+      "reviewerRole": "Peer",
+      "cycleType": "360 Feedback - Q4 2024",
+      "submittedAt": "2024-12-18T12:00:00Z",
+      "scores": { "technical": 4, "collaboration": 4, "leadership": 3, "communication": 4 },
+      "strengths": ["Reliable delivery", "Great collaboration"],
+      "improvements": ["Take more ownership cross-team"],
+      "comment": "James is dependable and communicates well."
+    },
+    {
+      "id": "fr_hr_admin_q4",
+      "requestId": "fb12",
+      "revieweeId": "admin1",
+      "reviewerId": "hr1",
+      "reviewerRole": "HR",
+      "cycleType": "360 Feedback - Q4 2024",
+      "submittedAt": "2024-12-22T13:30:00Z",
+      "scores": { "technical": 4, "collaboration": 4, "leadership": 4, "communication": 5 },
+      "strengths": ["Reliable support", "Fast response time"],
+      "improvements": ["Share status updates earlier"],
+      "comment": "David is responsive and helpful."
     }
   ]
 }
