@@ -1,11 +1,16 @@
 import { 
   House, 
-  MessageCircle, 
-  ChartNoAxesCombined, 
-  NotebookPen, 
-  ShieldUser, 
-  Award,
-  User
+  Users,
+  Calendar,
+  Settings,
+  FileText,
+  User,
+  MessageCircle,
+  ChartNoAxesCombined,
+  NotebookPen,
+  BarChart3,
+  PieChart,
+  Award
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -20,17 +25,20 @@ export interface SidebarItem {
 export const sidebarConfig: Record<Role, SidebarItem[]> = {
   admin: [
     { label: "Dashboard", icon: House, path: "/admin" },
-    { label: "Performance Review", icon: ChartNoAxesCombined, path: "/admin/performance" },
-    { label: "360 Feedback", icon: MessageCircle, path: "/admin/feedback" },
-    { label: "Development Plans", icon: NotebookPen, path: "/admin/development" },
-    { label: "Admin Settings", icon: ShieldUser, path: "/admin/settings" },
+    { label: "User Management", icon: Users, path: "/admin/users" },
+    { label: "Review Cycles", icon: Calendar, path: "/admin/performance" },
+    { label: "Configuration", icon: Settings, path: "/admin/settings" },
+    { label: "Audit Log", icon: FileText, path: "/admin/audit" },
+    { label: "Profile", icon: User, path: "/admin/profile" },
   ],
 
   hr: [
     { label: "Dashboard", icon: House, path: "/hr" },
-    { label: "Performance Review", icon: ChartNoAxesCombined, path: "/hr/performance" },
-    { label: "360 Feedback", icon: MessageCircle, path: "/hr/feedback" },
+    { label: "Performance Oversight", icon: BarChart3, path: "/hr/performance" },
     { label: "Development Plans", icon: NotebookPen, path: "/hr/development" },
+    { label: "Talent Analytics", icon: PieChart, path: "/hr/analytics" },
+    { label: "Reward Approvals", icon: Award, path: "/hr/rewards" },
+    { label: "Profile", icon: User, path: "/hr/profile" },
   ],
 
   employee: [

@@ -17,3 +17,7 @@ if (!rootEl) {
     </StrictMode>,
   )
 }
+
+if (import.meta.env.DEV) {
+  console.warn = () => {};
+}
