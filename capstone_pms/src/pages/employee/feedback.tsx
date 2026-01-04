@@ -142,6 +142,7 @@ const EmployeeFeedbackRequests = () => {
           return;
         }
 
+        // ✅ Requests where *I* am the reviewee (tasks assigned to be reviewed about me)
         const reqSnap = await getDocs(
           query(collection(db, "feedbackRequests"), where("revieweeId", "==", legacyId))
         );
@@ -158,12 +159,15 @@ const EmployeeFeedbackRequests = () => {
         });
 
         setRequests(rows);
+
         const requestIds = new Set(rows.map((r) => r.id));
         if (requestIds.size === 0) {
           setResponsesByRequestId({});
           setLoading(false);
           return;
         }
+
+        // ✅ Responses related to me (so we can show completed details)
         const respSnap = await getDocs(
           query(collection(db, "feedbackResponses"), where("revieweeId", "==", legacyId))
         );
@@ -225,7 +229,7 @@ const EmployeeFeedbackRequests = () => {
       await addDoc(collection(db, "feedbackResponses"), {
         requestId: selectedRequest.id,
         revieweeId: selectedRequest.revieweeId,
-        reviewerId: legacyId, // (your app logic: the logged-in user submits)
+        reviewerId: legacyId,
         reviewerRole: selectedRequest.requestedByRole || "Peer",
         cycleType: selectedRequest.cycleType,
         submittedAt: serverTimestamp(),
@@ -414,6 +418,7 @@ const EmployeeFeedbackRequests = () => {
         <Card className="p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>
       )}
 
+      {/* Pending */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">
           Pending Requests ({loading ? "…" : pending.length})
@@ -444,8 +449,7 @@ const EmployeeFeedbackRequests = () => {
                     <div className="text-sm text-gray-600 mt-2">{req.cycleType}</div>
 
                     <div className="text-sm text-gray-600 mt-4">
-                      Requested by:{" "}
-                      <span className="font-medium">{req.requestedBy}</span>{" "}
+                      Requested by: <span className="font-medium">{req.requestedBy}</span>{" "}
                       <span className="text-gray-500">({req.requestedByRole})</span>
                     </div>
 
@@ -473,8 +477,11 @@ const EmployeeFeedbackRequests = () => {
         )}
       </div>
 
+      {/* Completed */}
       <div className="space-y-3 pt-2">
-        <h2 className="text-lg font-semibold">Completed ({loading ? "…" : completed.length})</h2>
+        <h2 className="text-lg font-semibold">
+          Completed ({loading ? "…" : completed.length})
+        </h2>
 
         {loading ? null : completed.length === 0 ? (
           <Card className="p-10 text-center text-gray-500">
@@ -485,12 +492,16 @@ const EmployeeFeedbackRequests = () => {
           <div className="space-y-3">
             {completed.map((req) => {
               const resp = responsesByRequestId[req.id];
+
+              // ✅ Title should be requester name (per your requirement)
+              const completedTitle = req.requestedBy || req.employeeName;
+
               return (
                 <Card key={req.id} className="p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-3">
-                        <div className="font-semibold">{req.employeeName}</div>
+                        <div className="font-semibold">{completedTitle}</div>
                         {req.isAnonymous && (
                           <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700">
                             Anonymous

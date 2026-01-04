@@ -8,30 +8,38 @@ import { db } from "../../firebase";
 
 type Reward = {
   id: string;
-  title?: string;
+
+  // matches your DB/test structure
+  employeeId?: string;
+  type?: string; // "Spot Bonus", "Recognition Award", etc.
+  amount?: any; // "Rp 15.000.000" or number
   reason?: string;
-  status?: string;
   awardedBy?: string;
   approvedBy?: string;
+  date?: any; // string or Timestamp
+  status?: string; // "approved" | "pending" | ...
+  description?: string; // <-- this is your detailed justification in DB
+
+  // legacy/optional fields (keep for backward compatibility)
+  title?: string;
   awardedAt?: any;
-  justification?: string;
-  amount?: any;
-  type?: string;
-  description?: string;
-  date?: any;
+  justification?: string; // in case older docs used this
 };
 
 function parseToNumberIDR(value: any): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
   if (typeof value === "string") {
     const s = value.trim();
     if (!s) return null;
 
     const lower = s.toLowerCase();
     if (lower === "n/a" || lower === "na" || lower === "none") return null;
+
     const digitsOnly = s.replace(/[^\d.,-]/g, "");
     if (!digitsOnly) return null;
+
     const normalized = digitsOnly.replace(/[.,]/g, "");
     const n = Number(normalized);
     return Number.isFinite(n) ? n : null;
@@ -73,7 +81,7 @@ const EmployeeRewards = () => {
 
         if (!mounted) return;
 
-        const data = snap.docs.map((d) => ({
+        const data: Reward[] = snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as any),
         }));
@@ -94,8 +102,12 @@ const EmployeeRewards = () => {
   }, [user]);
 
   const total = rewards.length;
-  const approved = rewards.filter((r) => String(r.status).toLowerCase() === "approved").length;
-  const pending = rewards.filter((r) => String(r.status).toLowerCase() === "pending").length;
+  const approved = rewards.filter(
+    (r) => String(r.status).toLowerCase() === "approved"
+  ).length;
+  const pending = rewards.filter(
+    (r) => String(r.status).toLowerCase() === "pending"
+  ).length;
 
   const sortedRewards = useMemo(() => {
     const score = (s?: string) => {
@@ -108,12 +120,25 @@ const EmployeeRewards = () => {
   }, [rewards]);
 
   if (selectedReward) {
-    const displayTitle = selectedReward.type || selectedReward.title || "Reward";
-    const displayReason = selectedReward.description || selectedReward.reason || "No description provided.";
+    const displayTitle =
+      selectedReward.type || selectedReward.title || "Reward";
+
+    // summary line under the title card
+    const displayReason =
+      selectedReward.description ||
+      selectedReward.reason ||
+      "No description provided.";
+
     const displayDate =
       selectedReward.awardedAt?.toDate?.().toLocaleDateString?.() ||
       selectedReward.date?.toDate?.().toLocaleDateString?.() ||
       (typeof selectedReward.date === "string" ? selectedReward.date : "—");
+
+    // ✅ IMPORTANT: DB uses `description` as the detailed justification
+    const justificationText =
+      selectedReward.description ||
+      selectedReward.justification ||
+      "No justification provided.";
 
     return (
       <div className="max-w-3xl mx-auto">
@@ -174,9 +199,7 @@ const EmployeeRewards = () => {
 
           <Card className="p-4 mb-6">
             <div className="text-sm text-gray-600 mb-2">Justification</div>
-            <p className="text-gray-700">
-              {selectedReward.justification || "No justification provided."}
-            </p>
+            <p className="text-gray-700">{justificationText}</p>
           </Card>
 
           <button
@@ -194,7 +217,9 @@ const EmployeeRewards = () => {
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Rewards & Recognition</h1>
-        <p className="text-gray-600 mt-1">View your rewards and recognition history</p>
+        <p className="text-gray-600 mt-1">
+          View your rewards and recognition history
+        </p>
       </div>
 
       {/* Summary */}
@@ -230,7 +255,7 @@ const EmployeeRewards = () => {
       ) : (
         sortedRewards.map((reward) => {
           const displayTitle = reward.type || reward.title || "Reward";
-          const displayReason = reward.description || reward.reason || "—";
+          const displayReason = reward.reason || "—"; // list view: keep it short
 
           return (
             <Card
