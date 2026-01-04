@@ -6,16 +6,11 @@ import { db, auth } from "../firebase";
 
 type FeedbackRequest = {
   id: string;
-
-  // requests for logedd in user
   revieweeId?: string;
   employeeName?: string;
-
-  // who initiated the request by id
   requestedById?: string;
   requestedBy?: string;
   requestedByRole?: string;
-
   dueDate?: any;
   status?: string;
   cycleType?: string;
@@ -170,7 +165,7 @@ const PendingFeedback = () => {
               </div>
 
               <Link
-                to={`/employee/feedback/${it.id}`}
+                to={`/employee/feedback/`}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm"
               >
                 Provide Feedback
