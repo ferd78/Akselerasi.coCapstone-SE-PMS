@@ -17,7 +17,7 @@ type TeamMember = {
   name?: string;
   department?: string;
   position?: string;
-  avatar?: string; // "SJ"
+  avatar?: string;
   performanceOutcome?: string; // "Exceeds Expectations" etc
   reviewStatus?: "pending" | "in_progress" | "completed" | string;
   lastReviewDate?: any;
@@ -67,8 +67,6 @@ const ManagerDashboard = () => {
 
       try {
         const user = auth.currentUser;
-
-        // 1) Try to load manager dept from users/{uid}
         if (user?.uid) {
           try {
             const udoc = await getDoc(doc(db, "users", user.uid));
@@ -77,11 +75,9 @@ const ManagerDashboard = () => {
               if (u?.department && mounted) setDepartment(String(u.department));
             }
           } catch {
-            // ignore
+            // empty
           }
         }
-
-        // 2) Load team members for that department
         const dept = department || "Engineering";
         const snap = await getDocs(
           query(collection(db, "teamMembers"), where("department", "==", dept))
@@ -90,15 +86,12 @@ const ManagerDashboard = () => {
         if (!mounted) return;
 
         const rows: TeamMember[] = snap.docs.map((d) => {
-          // If your doc IDs are the member ids, keep both safe:
           const data = d.data() as any;
           return {
             id: data?.id || d.id,
             ...(data as any),
           };
         });
-
-        // Optional sort (match figma order a bit)
         rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
         setTeam(rows);
@@ -114,7 +107,6 @@ const ManagerDashboard = () => {
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
 
   const stats = useMemo(() => {
@@ -137,7 +129,6 @@ const ManagerDashboard = () => {
         </p>
       </div>
 
-      {/* Top stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-6">
           <div className="flex items-center gap-3">
@@ -201,7 +192,6 @@ const ManagerDashboard = () => {
         </Card>
       </div>
 
-      {/* Team overview */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">Team Overview</h2>
@@ -224,10 +214,7 @@ const ManagerDashboard = () => {
             {team.map((m) => {
               const isCompleted = String(m.reviewStatus).toLowerCase() === "completed";
               const actionText = isCompleted ? "View" : "Evaluate";
-
-              // ✅ change this route if your app uses a different one
               const actionTo = `/manager/performance/${m.id}`;
-
               return (
                 <div
                   key={m.id}
@@ -273,8 +260,6 @@ const ManagerDashboard = () => {
           </div>
         )}
       </Card>
-
-      {/* Quick links cards (optional like figma bottom row) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-6">
           <div className="font-semibold mb-1">360 Feedback</div>
