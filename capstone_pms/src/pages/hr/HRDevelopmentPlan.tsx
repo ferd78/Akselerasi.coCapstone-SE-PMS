@@ -1,206 +1,619 @@
-import React, { useState } from 'react';
-import { 
-  Plus, 
-  ChevronLeft, 
-  ChevronDown,
-  Save, 
-  X 
-} from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Card } from "@heroui/react";
+import { Plus, ArrowLeft, Save, Users, Clock } from "lucide-react";
+import { auth, db } from "../../firebase";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 
-// --- Types ---
-interface ActionItem {
+type UserRow = {
   id: string;
-  title: string;
-  date: string;
-  description: string;
-}
-
-interface FocusArea {
-  id: string;
-  title: string;
-  description: string;
-  priority: 'High' | 'Medium' | 'Low';
-  actions: ActionItem[];
-}
-
-interface Employee {
-  id: number;
+  legacyId: string;
   name: string;
-  initials: string;
-  position: string;
-}
+  role?: string;
+  department?: string;
+  position?: string;
+  email?: string;
+};
+type Priority = "high" | "medium" | "low";
+type PlanStatus = "active" | "archived" | string;
+type ActionStatus = "not_started" | "in_progress" | "completed" | string;
+type ActionItem = {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  status: ActionStatus;
+  owner: string;
+  progress: number;
+};
 
-const HRDevelopmentPlan = () => {
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
+type FocusArea = {
+  id: string;
+  title: string;
+  description: string;
+  priority: Priority;
+  actionItems: ActionItem[];
+};
 
-  const employees: Employee[] = [
-    { id: 1, name: 'Sarah Johnson', initials: 'SJ', position: 'Senior Developer' },
-    { id: 2, name: 'James Wilson', initials: 'JW', position: 'Frontend Developer' },
-    { id: 3, name: 'Lisa Martinez', initials: 'LM', position: 'Backend Developer' },
-    { id: 4, name: 'Robert Taylor', initials: 'RT', position: 'DevOps Engineer' },
-  ];
+type DevelopmentPlanDoc = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  status: PlanStatus;
+  createdDate: string;
+  lastUpdated: string;
+  focusAreas: FocusArea[];
+};
 
-  // --- Handlers ---
-  const handleAddFocusArea = () => {
-    const newArea: FocusArea = {
-      id: Date.now().toString(),
-      title: '',
-      description: '',
-      priority: 'Medium',
-      actions: [{ id: Math.random().toString(), title: '', date: '', description: '' }]
+const uid = (prefix = "id") => `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+const getInitials = (name: string) => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? "U";
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+};
+
+const normalizeUserRow = (d: { id: string; data: any }): UserRow => {
+  const data = d.data ?? {};
+  return {
+    id: d.id,
+    legacyId: String(data?.legacyId || data?.id || d.id),
+    name: String(data?.name || data?.displayName || "Unknown"),
+    role: data?.role,
+    department: data?.department,
+    position: data?.position || data?.jobTitle,
+    email: data?.email,
+  };
+};
+
+const normalizePlanDoc = (
+  data: any,
+  deterministicDocId: string,
+  emp: UserRow
+): DevelopmentPlanDoc => {
+  return {
+    id: String(data?.id || deterministicDocId),
+    employeeId: String(data?.employeeId || emp.legacyId),
+    employeeName: String(data?.employeeName || emp.name),
+    status: String(data?.status || "active"),
+    createdDate: String(data?.createdDate || todayISO()),
+    lastUpdated: String(data?.lastUpdated || todayISO()),
+    focusAreas: Array.isArray(data?.focusAreas)
+      ? data.focusAreas.map((fa: any) => ({
+          id: String(fa?.id || uid("fa")),
+          title: String(fa?.title || ""),
+          description: String(fa?.description || ""),
+          priority: (String(fa?.priority || "medium") as Priority) ?? "medium",
+          actionItems: Array.isArray(fa?.actionItems)
+            ? fa.actionItems.map((ai: any) => ({
+                id: String(ai?.id || uid("ai")),
+                title: String(ai?.title || ""),
+                description: String(ai?.description || ""),
+                dueDate: String(ai?.dueDate || ""),
+                status: String(ai?.status || "not_started"),
+                owner: String(ai?.owner || emp.name),
+                progress:
+                  typeof ai?.progress === "number"
+                    ? ai.progress
+                    : Number(ai?.progress || 0),
+              }))
+            : [],
+        }))
+      : [],
+  };
+};
+
+const HRDevelopmentPlanning = () => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hrUser, setHrUser] = useState<UserRow | null>(null);
+  const [employees, setEmployees] = useState<UserRow[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<UserRow | null>(null);
+  const [plan, setPlan] = useState<DevelopmentPlanDoc | null>(null);
+  useEffect(() => {
+    const loadHrProfile = async () => {
+      setError(null);
+      try {
+        const user = auth.currentUser;
+        if (!user?.email) {
+          setHrUser(null);
+          setError("Not logged in / missing email.");
+          return;
+        }
+        const uidDoc = await getDoc(doc(db, "users", user.uid));
+        if (uidDoc.exists()) {
+          setHrUser(normalizeUserRow({ id: uidDoc.id, data: uidDoc.data() }));
+          return;
+        }
+        const snap = await getDocs(
+          query(collection(db, "users"), where("email", "==", user.email), limit(1))
+        );
+
+        if (snap.empty) {
+          setHrUser(null);
+          setError(`No user profile found in Firestore for ${user.email}.`);
+          return;
+        }
+
+        const d = snap.docs[0];
+        setHrUser(normalizeUserRow({ id: d.id, data: d.data() }));
+      } catch (e: any) {
+        console.error(e);
+        setError(e?.message || "Failed to load HR profile");
+        setHrUser(null);
+      }
     };
-    setFocusAreas([...focusAreas, newArea]);
+
+    loadHrProfile();
+  }, []);
+
+  useEffect(() => {
+    const loadEmployees = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        const rows: UserRow[] = snap.docs.map((d) =>
+          normalizeUserRow({ id: d.id, data: d.data() })
+        );
+
+        const filtered = rows.filter((u) => {
+          const r = String(u.role || "").toLowerCase();
+          if (!r) return true;
+          if (r.includes("hr")) return false;
+          if (r.includes("manager")) return false;
+          if (r.includes("admin")) return false;
+          return r.includes("employee") || r.includes("staff") || r.includes("dev");
+        });
+
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+        setEmployees(filtered);
+      } catch (e: any) {
+        console.error(e);
+        setError(e?.message || "Failed to load employees");
+        setEmployees([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEmployees();
+  }, [hrUser]);
+
+  const openEmployeePlan = async (emp: UserRow) => {
+    setSelectedEmployee(emp);
+    setError(null);
+    setPlan(null);
+    try {
+      const deterministicDocId = `dp_${emp.legacyId}`;
+      const planRef = doc(db, "developmentPlans", deterministicDocId);
+      const snap = await getDoc(planRef);
+      if (snap.exists()) {
+        setPlan(normalizePlanDoc(snap.data(), deterministicDocId, emp));
+        return;
+      }
+
+      setPlan({
+        id: deterministicDocId,
+        employeeId: emp.legacyId,
+        employeeName: emp.name,
+        status: "active",
+        createdDate: todayISO(),
+        lastUpdated: todayISO(),
+        focusAreas: [],
+      });
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Failed to load development plan");
+      setPlan({
+        id: `dp_${emp.legacyId}`,
+        employeeId: emp.legacyId,
+        employeeName: emp.name,
+        status: "active",
+        createdDate: todayISO(),
+        lastUpdated: todayISO(),
+        focusAreas: [],
+      });
+    }
   };
 
-  const handleAddAction = (areaId: string) => {
-    setFocusAreas(focusAreas.map(area => 
-      area.id === areaId 
-        ? { ...area, actions: [...area.actions, { id: Math.random().toString(), title: '', date: '', description: '' }] } 
-        : area
-    ));
-  };
-
-  const handleCancel = () => {
+  const closeEditor = () => {
     setSelectedEmployee(null);
-    setFocusAreas([]);
+    setPlan(null);
+    setError(null);
   };
 
-  if (selectedEmployee) {
+  const addFocusArea = () => {
+    if (!plan) return;
+    const next: FocusArea = {
+      id: uid("fa"),
+      title: "",
+      description: "",
+      priority: "medium",
+      actionItems: [],
+    };
+    setPlan({ ...plan, focusAreas: [...plan.focusAreas, next] });
+  };
+
+  const updateFocusArea = (focusId: string, patch: Partial<FocusArea>) => {
+    if (!plan) return;
+    setPlan({
+      ...plan,
+      focusAreas: plan.focusAreas.map((fa) =>
+        fa.id === focusId ? { ...fa, ...patch } : fa
+      ),
+    });
+  };
+
+  const addActionItem = (focusId: string) => {
+    if (!plan || !selectedEmployee) return;
+
+    const next: ActionItem = {
+      id: uid("ai"),
+      title: "",
+      description: "",
+      dueDate: "",
+      status: "not_started",
+      owner: selectedEmployee.name,
+      progress: 0,
+    };
+
+    setPlan({
+      ...plan,
+      focusAreas: plan.focusAreas.map((fa) =>
+        fa.id === focusId
+          ? { ...fa, actionItems: [...fa.actionItems, next] }
+          : fa
+      ),
+    });
+  };
+
+  const updateActionItem = (
+    focusId: string,
+    actionId: string,
+    patch: Partial<ActionItem>
+  ) => {
+    if (!plan) return;
+    setPlan({
+      ...plan,
+      focusAreas: plan.focusAreas.map((fa) => {
+        if (fa.id !== focusId) return fa;
+        return {
+          ...fa,
+          actionItems: fa.actionItems.map((ai) =>
+            ai.id === actionId ? { ...ai, ...patch } : ai
+          ),
+        };
+      }),
+    });
+  };
+
+  const savePlan = async () => {
+    if (!selectedEmployee || !plan) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not logged in. Firestore write blocked.");
+      await user.getIdToken(true);
+      const deterministicDocId = `dp_${selectedEmployee.legacyId}`;
+      const planRef = doc(db, "developmentPlans", deterministicDocId);
+      const payload: DevelopmentPlanDoc = {
+        ...plan,
+        id: deterministicDocId,
+        employeeId: selectedEmployee.legacyId,
+        employeeName: selectedEmployee.name,
+        status: plan.status || "active",
+        createdDate: plan.createdDate || todayISO(),
+        lastUpdated: todayISO(),
+        focusAreas: plan.focusAreas,
+      };
+      await setDoc(planRef, payload, { merge: true });
+      const after = await getDoc(planRef);
+      if (after.exists()) {
+        setPlan(
+          normalizePlanDoc(after.data(), deterministicDocId, selectedEmployee)
+        );
+      }
+    } catch (e: any) {
+      console.error("[HR DEV PLAN] Save failed:", e);
+      setError(e?.message || "Failed to save development plan");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (selectedEmployee && plan) {
     return (
-      <div className="p-8 bg-gray-50 min-h-screen font-sans text-gray-800 flex flex-col items-center">
-        {/* Centered Content Container */}
-        <div className="w-full max-w-5xl">
-          <button 
-            onClick={handleCancel}
-            className="flex items-center text-sm text-gray-500 hover:text-gray-800 mb-6 transition-colors"
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={closeEditor}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
-            <ChevronLeft size={16} /> Back to Planning
+            <ArrowLeft className="size-4" />
+            Back to list
           </button>
 
-          <header className="mb-8 flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Development Plan - {selectedEmployee.name}</h1>
-              <p className="text-gray-500">Create and manage development objectives</p>
+          <button
+            type="button"
+            onClick={addFocusArea}
+            className="flex items-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-lg"
+          >
+            <Plus className="size-5" />
+            Add Focus Area
+          </button>
+        </div>
+
+        <div>
+          <h1 className="text-3xl font-semibold">
+            Development Plan - {selectedEmployee.name}
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Create and manage development objectives
+          </p>
+        </div>
+
+        {error && (
+          <Card className="p-4 border border-red-200 bg-red-50 text-red-700">
+            {error}
+            <div className="text-xs mt-2 text-red-600">
+              Open DevTools Console to see the detailed Firestore error.
             </div>
-            <button 
-              onClick={handleAddFocusArea}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-all shadow-sm"
-            >
-              <Plus size={18} /> Add Focus Area
-            </button>
-          </header>
+          </Card>
+        )}
 
-          <div className="space-y-8">
-            {focusAreas.map((area) => (
-              <div key={area.id} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                {/* Focus Area Header */}
-                <div className="flex gap-4 mb-4">
-                  <input 
-                    type="text"
-                    placeholder="Focus Area Title"
-                    className="flex-grow text-lg font-medium border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/10"
-                  />
-                  <div className="relative min-w-[160px]">
-                    <select className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 cursor-pointer">
-                      <option>High Priority</option>
-                      <option defaultValue="Medium Priority">Medium Priority</option>
-                      <option>Low Priority</option>
-                    </select>
-                    <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Focus Area Description */}
-                <textarea 
-                  placeholder="Describe the development focus area..."
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm h-20 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500/10 resize-none"
-                />
-
-                {/* Action Items Section */}
+        {plan.focusAreas.length === 0 ? (
+          <Card className="p-10 text-center text-gray-500">
+            <div className="font-medium">No focus areas yet</div>
+            <div className="text-sm mt-1">
+              Click <span className="font-medium">Add Focus Area</span> to start.
+            </div>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {plan.focusAreas.map((fa) => (
+              <Card key={fa.id} className="p-6">
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-bold text-gray-700">Action Items</h4>
-                    <button 
-                      onClick={() => handleAddAction(area.id)}
-                      className="text-blue-600 text-xs font-bold flex items-center gap-1 hover:underline"
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <input
+                      className="w-full border rounded-xl px-4 py-3"
+                      placeholder="Focus Area Title"
+                      value={fa.title}
+                      onChange={(e) =>
+                        updateFocusArea(fa.id, { title: e.target.value })
+                      }
+                    />
+
+                    <select
+                      className="md:w-56 w-full border rounded-xl px-4 py-3"
+                      value={fa.priority}
+                      onChange={(e) =>
+                        updateFocusArea(fa.id, {
+                          priority: e.target.value as Priority,
+                        })
+                      }
                     >
-                      <Plus size={14} /> Add Action
+                      <option value="high">High Priority</option>
+                      <option value="medium">Medium Priority</option>
+                      <option value="low">Low Priority</option>
+                    </select>
+                  </div>
+
+                  <textarea
+                    className="w-full border rounded-xl px-4 py-3 min-h-[90px]"
+                    placeholder="Describe the development focus area..."
+                    value={fa.description}
+                    onChange={(e) =>
+                      updateFocusArea(fa.id, { description: e.target.value })
+                    }
+                  />
+
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="text-lg font-semibold">Action Items</div>
+                    <button
+                      type="button"
+                      onClick={() => addActionItem(fa.id)}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      + Add Action
                     </button>
                   </div>
 
-                  {area.actions.map((action) => (
-                    <div key={action.id} className="border border-gray-100 rounded-lg p-4 bg-gray-50/30 space-y-3">
-                      <div className="flex gap-4">
-                        <input 
-                          type="text"
-                          placeholder="Action Item Title"
-                          className="flex-grow border border-gray-200 rounded-lg px-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10"
-                        />
-                        <input 
-                          type="text"
-                          placeholder="DD/MM/YYYY"
-                          className="w-40 border border-gray-200 rounded-lg px-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10"
-                        />
-                      </div>
-                      <textarea 
-                        placeholder="Additional details for this action item..."
-                        className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm h-16 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10 resize-none"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                  <div className="space-y-4">
+                    {fa.actionItems?.length ? (
+                      fa.actionItems.map((ai) => (
+                        <div
+                          key={ai.id}
+                          className="border rounded-xl p-4 space-y-3"
+                        >
+                          <div className="flex flex-col md:flex-row gap-4">
+                            <input
+                              className="w-full border rounded-xl px-4 py-3"
+                              placeholder="Action item title"
+                              value={ai.title}
+                              onChange={(e) =>
+                                updateActionItem(fa.id, ai.id, {
+                                  title: e.target.value,
+                                })
+                              }
+                            />
 
-            {/* Page Footer */}
-            <div className="flex items-center gap-3 pt-6 pb-12">
-              <button className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-all shadow-md">
-                <Save size={18} /> Save Development Plan
-              </button>
-              <button 
-                onClick={handleCancel}
-                className="px-6 py-2 rounded-lg font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-all bg-white"
-              >
-                Cancel
-              </button>
-            </div>
+                            <input
+                              className="md:w-56 w-full border rounded-xl px-4 py-3"
+                              type="date"
+                              value={ai.dueDate}
+                              onChange={(e) =>
+                                updateActionItem(fa.id, ai.id, {
+                                  dueDate: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+
+                          <textarea
+                            className="w-full border rounded-xl px-4 py-3 min-h-[80px]"
+                            placeholder="Describe the action item..."
+                            value={ai.description}
+                            onChange={(e) =>
+                              updateActionItem(fa.id, ai.id, {
+                                description: e.target.value,
+                              })
+                            }
+                          />
+
+                          <div className="flex flex-col md:flex-row gap-4">
+                            <select
+                              className="md:w-56 w-full border rounded-xl px-4 py-3"
+                              value={ai.status}
+                              onChange={(e) =>
+                                updateActionItem(fa.id, ai.id, {
+                                  status: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="not_started">Not Started</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="completed">Completed</option>
+                            </select>
+
+                            <input
+                              className="w-full border rounded-xl px-4 py-3"
+                              placeholder="Owner"
+                              value={ai.owner}
+                              onChange={(e) =>
+                                updateActionItem(fa.id, ai.id, {
+                                  owner: e.target.value,
+                                })
+                              }
+                            />
+
+                            <input
+                              className="md:w-40 w-full border rounded-xl px-4 py-3"
+                              type="number"
+                              min={0}
+                              max={100}
+                              placeholder="Progress"
+                              value={ai.progress}
+                              onChange={(e) =>
+                                updateActionItem(fa.id, ai.id, {
+                                  progress: Number(e.target.value || 0),
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-gray-500 text-sm">
+                        No action items yet. Click{" "}
+                        <span className="font-medium">+ Add Action</span>.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
+        )}
+
+        <div className="flex items-center gap-4 pt-2">
+          <button
+            type="button"
+            onClick={savePlan}
+            disabled={saving}
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-xl disabled:opacity-50"
+          >
+            <Save className="size-5" />
+            {saving ? "Saving..." : "Save Development Plan"}
+          </button>
+
+          <button
+            type="button"
+            onClick={closeEditor}
+            className="px-6 py-4 rounded-xl border hover:bg-gray-50"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen font-sans flex flex-col items-center">
-      <div className="w-full max-w-5xl">
-        <header className="mb-8 text-left w-full">
-          <h1 className="text-2xl font-bold text-gray-900">Development Planning</h1>
-        </header>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Development Planning</h1>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+      {error && (
+        <Card className="p-4 border border-red-200 bg-red-50 text-red-700">
+          {error}
+        </Card>
+      )}
+
+      {loading ? (
+        <Card className="p-10 text-center text-gray-500">Loading…</Card>
+      ) : employees.length === 0 ? (
+        <Card className="p-10 text-center text-gray-500">
+          <Users className="size-10 mx-auto mb-3 text-gray-400" />
+          <div className="font-medium">No employees available</div>
+          <div className="text-sm mt-1">
+            Employee data will appear here once loaded
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {employees.map((emp) => (
-            <div 
-              key={emp.id}
-              onClick={() => {
-                setSelectedEmployee(emp);
-                handleAddFocusArea(); 
-              }}
-              className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 cursor-pointer hover:shadow-md transition-all group"
+            <button
+              key={emp.legacyId}
+              type="button"
+              onClick={() => openEmployeePlan(emp)}
+              className="text-left"
             >
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                {emp.initials}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{emp.name}</h3>
-                <p className="text-gray-500">{emp.position}</p>
-              </div>
-            </div>
+              <Card className="p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-xl bg-blue-600 text-white flex items-center justify-center font-semibold">
+                    {getInitials(emp.name)}
+                  </div>
+                  <div>
+                    <div className="font-semibold">{emp.name}</div>
+                    <div className="text-sm text-gray-600">
+                      {emp.position || "Employee"}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </button>
           ))}
         </div>
+      )}
+
+      <div className="text-sm text-gray-500 flex items-center gap-2">
+        <Clock className="size-4" />
+        Select an employee to view and edit their development plan.
       </div>
     </div>
   );
 };
 
-export default HRDevelopmentPlan;
+export default HRDevelopmentPlanning;

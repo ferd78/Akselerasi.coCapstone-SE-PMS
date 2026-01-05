@@ -1,136 +1,318 @@
-import React, { useState } from 'react';
-import { 
-  Check, 
-  X, 
-  Award, 
-  User, 
-  Calendar, 
-  DollarSign 
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from "react";
+import { Check, X, Award } from "lucide-react";
+import { Card } from "@heroui/react";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 
-// --- Types ---
-interface RewardRequest {
+import { db } from "../../firebase";
+import { useAuth } from "../../contexts/AuthContext";
+
+type RewardDoc = {
   id: string;
-  employeeName: string;
-  rewardType: string;
-  amount: string;
-  recommendedBy: string;
-  submittedDate: string;
-  reason: string;
-  justification: string;
+  employeeId?: string;
+  type?: string;
+  amount?: any;
+  reason?: string;
+  description?: string;
+  awardedBy?: string;
+  approvedBy?: string;
+  status?: string;
+  createdAt?: any;
+  date?: any;
+};
+
+type UserDoc = {
+  id: string;
+  name?: string;
+  role?: string;
+  department?: string;
+  email?: string;
+  avatar?: string;
+};
+
+function parseToNumberIDR(value: any): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return null;
+    const lower = s.toLowerCase();
+    if (lower === "n/a" || lower === "na" || lower === "none") return null;
+    const digitsOnly = s.replace(/[^\d.,-]/g, "");
+    if (!digitsOnly) return null;
+    const normalized = digitsOnly.replace(/[.,]/g, "");
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function formatIDR(value: any): string {
+  const n = parseToNumberIDR(value);
+  if (n === null) return "—";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function safeToDate(v: any): Date | null {
+  if (!v) return null;
+  if (typeof v?.toDate === "function") {
+    const d = v.toDate();
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof v?.seconds === "number") {
+    const d = new Date(v.seconds * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof v === "string") {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function formatDMY(d: Date | null): string {
+  if (!d) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 const HRRewardApproval = () => {
-  // Mock data based on provided UI
-  const [pendingRewards, setPendingRewards] = useState<RewardRequest[]>([
-    {
-      id: '1',
-      employeeName: 'Lisa Martinez',
-      rewardType: 'Performance Bonus',
-      amount: '2,500',
-      recommendedBy: 'Michael Chen',
-      submittedDate: '20/12/2024',
-      reason: 'Year-end performance excellence',
-      justification: 'Lisa has consistently delivered exceptional results throughout the year, exceeding all quarterly targets and mentoring three junior developers.'
-    },
-    {
-      id: '2',
-      employeeName: 'James Wilson',
-      rewardType: 'Spot Bonus',
-      amount: '750',
-      recommendedBy: 'Michael Chen',
-      submittedDate: '21/12/2024',
-      reason: 'Critical bug fix',
-      justification: 'James identified and resolved a critical production bug over the weekend, preventing potential data loss and service disruption.'
-    }
-  ]);
+  const { user } = useAuth();
 
-  const handleAction = (id: string, action: 'approve' | 'reject') => {
-    // Logic to remove from list or update status
-    setPendingRewards(prev => prev.filter(item => item.id !== id));
-    console.log(`${action}ed reward for ID: ${id}`);
+  const [loading, setLoading] = useState(true);
+  const [pendingRewards, setPendingRewards] = useState<RewardDoc[]>([]);
+  const [employeesById, setEmployeesById] = useState<Record<string, UserDoc>>(
+    {}
+  );
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const usersSnap = await getDocs(
+          query(collection(db, "users"), where("role", "==", "employee"))
+        );
+        const map: Record<string, UserDoc> = {};
+        usersSnap.docs.forEach((d) => {
+          map[d.id] = { id: d.id, ...(d.data() as any) };
+        });
+
+        const rewardsSnap = await getDocs(
+          query(collection(db, "rewards"), where("status", "==", "pending"))
+        );
+        const rewards: RewardDoc[] = rewardsSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+
+        rewards.sort((a, b) => {
+          const da =
+            safeToDate(a.createdAt) ||
+            safeToDate(a.date) ||
+            new Date(0);
+          const dbb =
+            safeToDate(b.createdAt) ||
+            safeToDate(b.date) ||
+            new Date(0);
+          return dbb.getTime() - da.getTime();
+        });
+
+        if (!mounted) return;
+        setEmployeesById(map);
+        setPendingRewards(rewards);
+      } catch (e) {
+        console.warn("Failed to load HR reward approvals", e);
+        if (mounted) {
+          setEmployeesById({});
+          setPendingRewards([]);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    fetchData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const pendingCount = pendingRewards.length;
+
+  const hrName = useMemo(() => {
+    const anyUser: any = user as any;
+    return (
+      anyUser?.name ||
+      anyUser?.displayName ||
+      anyUser?.email ||
+      "HR"
+    );
+  }, [user]);
+
+  const onApprove = async (reward: RewardDoc) => {
+    setSavingId(reward.id);
+    try {
+      await updateDoc(doc(db, "rewards", reward.id), {
+        status: "approved",
+        approvedBy: hrName,
+        approvedAt: serverTimestamp(),
+      });
+      setPendingRewards((prev) => prev.filter((r) => r.id !== reward.id));
+    } catch (e) {
+      console.warn("Approve reward failed", e);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const onReject = async (reward: RewardDoc) => {
+    setSavingId(reward.id);
+    try {
+      await updateDoc(doc(db, "rewards", reward.id), {
+        status: "rejected",
+        rejectedBy: hrName,
+        rejectedAt: serverTimestamp(),
+      });
+      setPendingRewards((prev) => prev.filter((r) => r.id !== reward.id));
+    } catch (e) {
+      console.warn("Reject reward failed", e);
+    } finally {
+      setSavingId(null);
+    }
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen font-sans text-gray-800 flex flex-col items-center">
-      <div className="w-full max-w-5xl">
-        {/* Header */}
-        <header className="mb-8 w-full">
-          <h1 className="text-2xl font-bold text-gray-900">Reward Approvals</h1>
-          <p className="text-gray-500">Review and approve reward recommendations</p>
-        </header>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Reward Approvals</h1>
+        <p className="text-gray-600 mt-1">
+          Review and approve reward recommendations
+        </p>
+      </div>
 
-        {/* Purple Banner Card */}
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-2xl p-8 mb-8 text-white shadow-lg flex items-center gap-6">
-          <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm">
-            <Award size={32} className="text-white" />
+      <Card className="p-6 bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/15 p-3 rounded-xl">
+            <Award className="size-7" />
           </div>
           <div>
-            <h2 className="text-4xl font-bold">{pendingRewards.length}</h2>
-            <p className="text-purple-100 font-medium">Pending Approvals</p>
+            <div className="text-3xl font-semibold">
+              {loading ? "—" : pendingCount}
+            </div>
+            <div className="text-white/85 text-sm">Pending Approvals</div>
           </div>
         </div>
+      </Card>
 
-        {/* Reward Requests List */}
+      {loading ? (
+        <Card className="p-12 text-center text-gray-500">Loading...</Card>
+      ) : pendingRewards.length === 0 ? (
+        <Card className="p-12 text-center text-gray-500">
+          No pending reward approvals.
+        </Card>
+      ) : (
         <div className="space-y-6">
-          {pendingRewards.length > 0 ? (
-            pendingRewards.map((reward) => (
-              <div key={reward.id} className="bg-white border border-gray-100 rounded-2xl p-8 shadow-sm transition-all hover:shadow-md">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-xl font-bold text-gray-900">{reward.employeeName}</h3>
-                      <span className="bg-purple-50 text-purple-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                        {reward.rewardType}
+          {pendingRewards.map((r) => {
+            const empName =
+              (r.employeeId && employeesById[r.employeeId]?.name) ||
+              r.employeeId ||
+              "Unknown Employee";
+
+            const submitted =
+              safeToDate(r.createdAt) || safeToDate(r.date);
+
+            return (
+              <Card key={r.id} className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-semibold text-lg truncate">
+                        {empName}
+                      </h3>
+                      <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700 uppercase">
+                        {r.type || "Reward"}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500">
-                      Recommended by: <span className="font-semibold">{reward.recommendedBy}</span> • Submitted: {reward.submittedDate}
-                    </p>
+
+                    <div className="text-xs text-gray-500">
+                      Recommended by:{" "}
+                      <span className="text-gray-700 font-medium">
+                        {r.awardedBy || "—"}
+                      </span>{" "}
+                      • Submitted:{" "}
+                      <span className="text-gray-700 font-medium">
+                        {formatDMY(submitted)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold text-purple-600 flex items-center">
-                    <span className="text-lg">$</span>{reward.amount}
+
+                  <div className="text-right">
+                    <div className="text-purple-700 font-semibold text-xl">
+                      {formatIDR(r.amount)}
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4 mb-8">
+                <div className="mt-5 space-y-3">
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Reason:</h4>
-                    <p className="text-gray-800 font-medium">{reward.reason}</p>
+                    <div className="text-[11px] tracking-wide text-gray-500 font-semibold">
+                      REASON:
+                    </div>
+                    <div className="text-gray-800 font-medium">
+                      {r.reason || "—"}
+                    </div>
                   </div>
+
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Justification:</h4>
-                    <p className="text-gray-600 leading-relaxed text-sm">{reward.justification}</p>
+                    <div className="text-[11px] tracking-wide text-gray-500 font-semibold">
+                      JUSTIFICATION:
+                    </div>
+                    <div className="text-gray-700">
+                      {r.description || "—"}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-6 border-t border-gray-50">
-                  <button 
-                    onClick={() => handleAction(reward.id, 'approve')}
-                    className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-sm"
+                <div className="mt-6 pt-5 border-t flex gap-3">
+                  <button
+                    className="px-5 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 inline-flex items-center gap-2 disabled:opacity-60"
+                    onClick={() => onApprove(r)}
+                    disabled={savingId === r.id}
                   >
-                    <Check size={18} /> Approve
+                    <Check className="size-4" />
+                    Approve
                   </button>
-                  <button 
-                    onClick={() => handleAction(reward.id, 'reject')}
-                    className="flex items-center gap-2 bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-red-700 transition-all shadow-sm"
+
+                  <button
+                    className="px-5 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 inline-flex items-center gap-2 disabled:opacity-60"
+                    onClick={() => onReject(r)}
+                    disabled={savingId === r.id}
                   >
-                    <X size={18} /> Reject
+                    <X className="size-4" />
+                    Reject
                   </button>
                 </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-              <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="text-gray-300" size={32} />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">All caught up!</h3>
-              <p className="text-gray-500">No pending reward approvals at this time.</p>
-            </div>
-          )}
+              </Card>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 };
