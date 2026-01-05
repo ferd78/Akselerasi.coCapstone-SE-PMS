@@ -3,9 +3,9 @@ import Sidebar from "../components/Sidebar"
 
 const HRLayout = () => {
   return (
-    <div className="flex">
+    <div className="flex h-screen w-full overflow-hidden">
       <Sidebar role="hr" />
-      <main className="flex-1 p-4">
+      <main className="flex-1 min-w-0 overflow-y-auto px-6 py-8 lg:px-10">
         <Outlet />
       </main>
     </div>
