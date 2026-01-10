@@ -10,7 +10,8 @@ import {
   NotebookPen,
   BarChart3,
   PieChart,
-  Award
+  Award,
+  MessageSquare
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -30,6 +31,7 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "Configuration", icon: Settings, path: "/admin/settings" },
     { label: "Audit Log", icon: FileText, path: "/admin/audit" },
     { label: "Profile", icon: User, path: "/admin/profile" },
+    { label: "AI Chat", icon: MessageSquare, path: "/admin/ai" },
   ],
 
   hr: [
@@ -39,6 +41,7 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "Talent Analytics", icon: PieChart, path: "/hr/analytics" },
     { label: "Reward Approvals", icon: Award, path: "/hr/rewards" },
     { label: "Profile", icon: User, path: "/hr/profile" },
+    { label: "AI Chat", icon: MessageSquare, path: "/hr/ai" },
   ],
 
   employee: [
@@ -48,6 +51,7 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "Development Plans", icon: NotebookPen, path: "/employee/development" },
     { label: "Rewards", icon: Award, path: "/employee/reward" },
     { label: "Profile", icon: User, path: "/employee/profile"},
+    { label: "AI Chat", icon: MessageSquare, path: "/employee/ai"}
   ],
 
   manager: [
@@ -57,5 +61,6 @@ export const sidebarConfig: Record<Role, SidebarItem[]> = {
     { label: "Development Overview", icon: NotebookPen, path: "/manager/development-overview" },
     { label: "Team Reward", icon: Award, path: "/manager/team-reward" },
     { label: "Profile", icon: User, path: "/manager/profile"},
+    { label: "AI Chat", icon: MessageSquare, path: "/manager/ai"}
   ],
 };
