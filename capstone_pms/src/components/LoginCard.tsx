@@ -4,7 +4,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { Eye, EyeClosed } from "lucide-react";
-
+import {Link} from "react-router-dom"
 const LoginCard = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -99,7 +99,9 @@ const LoginCard = () => {
           </button>
           {error && <div className="text-red-500 text-sm mt-3">{error}</div>}
           <button type="button" className="text-tertiary text-sm hover:cursor-pointer hover:underline mt-6">
-            Forgot Password?
+            <Link to="/forgot-password" className="text-sm text-gray-600 hover:underline">
+              Forgot Password?
+            </Link>
           </button>
         </form>
       </div>
