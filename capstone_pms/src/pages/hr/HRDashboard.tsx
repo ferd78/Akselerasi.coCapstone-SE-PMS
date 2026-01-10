@@ -8,7 +8,6 @@ import {
   Award,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-
 import { db } from "../../firebase";
 import {
   collection,
@@ -242,7 +241,7 @@ const HRDashboard = () => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold">Talent Distribution</h2>
           <Link
-            to="/hr/talent-analytics"
+            to="/hr/analytics"
             className="text-blue-600 text-sm font-medium hover:underline"
           >
             View full analytics
