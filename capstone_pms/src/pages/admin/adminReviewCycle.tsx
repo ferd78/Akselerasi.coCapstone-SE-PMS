@@ -1,359 +1,447 @@
-import { useState } from "react";
-import { Calendar, Play } from "lucide-react";
-
-type ReviewCycleStatus = "active" | "scheduled" | "closed";
+import { useEffect, useMemo, useState } from "react";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  Timestamp,
+  where,
+  writeBatch,
+} from "firebase/firestore";
+import { db } from "../../firebase";
 
 type ReviewCycle = {
-  id: number;
-  title: string;
+  id: string;
+  name: string;
   type: string;
-  startDate: string;
-  endDate: string;
-  participants?: number;
-  completed?: number;
-  status: ReviewCycleStatus;
+  status: "active" | "scheduled" | "closed" | string;
+  startDate: any;
+  endDate: any;
 };
 
-const initialCycles: ReviewCycle[] = [
-  {
-    id: 1,
-    title: "Q4 2024 Performance Review",
-    type: "Quarterly Review",
-    startDate: "01/12/2024",
-    endDate: "31/12/2024",
-    participants: 156,
-    completed: 89,
-    status: "active",
-  },
-  {
-    id: 2,
-    title: "360 Feedback - Q4 2024",
-    type: "360 Feedback",
-    startDate: "10/12/2024",
-    endDate: "28/12/2024",
-    participants: 134,
-    completed: 67,
-    status: "active",
-  },
-  {
-    id: 3,
-    title: "Annual Review 2024",
-    type: "Annual Review",
-    startDate: "01/01/2025",
-    endDate: "31/01/2025",
-    status: "scheduled",
-  },
-];
+type CycleStats = {
+  total: number;
+  pending: number;
+  completed: number;
+  progressPct: number;
+};
+
+function formatDate(ts: any) {
+  if (!ts) return "—";
+  if (typeof ts?.toDate === "function") return ts.toDate().toLocaleDateString();
+  if (ts instanceof Date) return ts.toLocaleDateString();
+  if (typeof ts === "number") return new Date(ts).toLocaleDateString();
+  if (typeof ts === "string") {
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString();
+    return ts;
+  }
+  if (typeof ts?.seconds === "number") return new Date(ts.seconds * 1000).toLocaleDateString();
+  return "—";
+}
+
+function toMillis(ts: any): number {
+  if (!ts) return 0;
+  if (typeof ts?.toDate === "function") return ts.toDate().getTime();
+  if (ts instanceof Date) return ts.getTime();
+  if (typeof ts === "number") return ts;
+  if (typeof ts === "string") {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+  if (typeof ts?.seconds === "number") return ts.seconds * 1000;
+  return 0;
+}
+
+async function countDocs(q: any): Promise<number> {
+  const mod = await import("firebase/firestore").catch(() => null as any);
+  if (mod?.getCountFromServer) {
+    const snap = await mod.getCountFromServer(q);
+    return snap.data().count ?? 0;
+  }
+  const snap = await getDocs(q);
+  return snap.size;
+}
+
+async function deleteFeedbackRequestsForCycle(cycleId: string): Promise<number> {
+  const colRef = collection(db, "feedbackRequests");
+  const qA = query(colRef, where("cycleId", "==", cycleId));
+  const qB = query(colRef, where("reviewCycleId", "==", cycleId));
+  const [snapA, snapB] = await Promise.all([getDocs(qA), getDocs(qB)]);
+  const unique = new Map<string, (typeof snapA.docs)[number]>();
+  snapA.docs.forEach((d) => unique.set(d.id, d));
+  snapB.docs.forEach((d) => unique.set(d.id, d));
+  const docs = Array.from(unique.values());
+  if (docs.length === 0) return 0;
+
+  const CHUNK = 450;
+  let deleted = 0;
+
+  for (let i = 0; i < docs.length; i += CHUNK) {
+    const slice = docs.slice(i, i + CHUNK);
+    const batch = writeBatch(db);
+    slice.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    deleted += slice.length;
+  }
+
+  return deleted;
+}
 
 const AdminReviewCycle = () => {
-  const [cycles, setCycles] = useState<ReviewCycle[]>(initialCycles);
-  const [confirmCloseId, setConfirmCloseId] = useState<number | null>(null);
-  const [editingCycle, setEditingCycle] = useState<ReviewCycle | null>(null);
+  const [cycles, setCycles] = useState<ReviewCycle[]>([]);
+  const [statsByCycle, setStatsByCycle] = useState<Record<string, CycleStats>>({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [openCreate, setOpenCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("Quarterly Review");
+  const [newStart, setNewStart] = useState("");
+  const [newEnd, setNewEnd] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createErr, setCreateErr] = useState<string | null>(null);
+  const [closingId, setClosingId] = useState<string | null>(null);
+  const [closeErr, setCloseErr] = useState<string | null>(null);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newCycleForm, setNewCycleForm] = useState({
-    title: "",
-    type: "Quarterly Review",
-    startDate: "",
-    endDate: "",
-  });
+  useEffect(() => {
+    setLoading(true);
+    setErr(null);
 
-  const handleCloseCycle = () => {
-    if (!confirmCloseId) return;
-
-    setCycles((prev) =>
-      prev.map((cycle) =>
-        cycle.id === confirmCloseId
-          ? { ...cycle, status: "closed" }
-          : cycle
-      )
+    const qCycles = query(
+      collection(db, "reviewCycles"),
+      where("status", "==", "active")
     );
-    setConfirmCloseId(null);
-  };
 
-  const handleActivateCycle = (id: number) => {
-    setCycles((prev) =>
-      prev.map((cycle) =>
-        cycle.id === id ? { ...cycle, status: "active" } : cycle
-      )
+    const unsub = onSnapshot(
+      qCycles,
+      (snap) => {
+        const items: ReviewCycle[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            name: data.name ?? "—",
+            type: data.type ?? "—",
+            status: data.status ?? "active",
+            startDate: data.startDate ?? null,
+            endDate: data.endDate ?? null,
+          };
+        });
+
+        items.sort((a, b) => toMillis(b.startDate) - toMillis(a.startDate));
+        setCycles(items);
+        setLoading(false);
+      },
+      (e) => {
+        setErr(e.message || "Failed to load review cycles");
+        setLoading(false);
+      }
     );
-  };
 
-  const handleCreateCycle = () => {
-    if (
-      !newCycleForm.title ||
-      !newCycleForm.startDate ||
-      !newCycleForm.endDate
-    )
-      return;
+    return () => unsub();
+  }, []);
 
-    const newCycle: ReviewCycle = {
-      id: cycles.length + 1,
-      title: newCycleForm.title,
-      type: newCycleForm.type,
-      startDate: newCycleForm.startDate,
-      endDate: newCycleForm.endDate,
-      status: "scheduled",
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!cycles.length) {
+        setStatsByCycle({});
+        return;
+      }
+
+      setStatsLoading(true);
+
+      try {
+        const results: Record<string, CycleStats> = {};
+        const COMPLETED = "completed";
+        const PENDING = "pending";
+        await Promise.all(
+          cycles.map(async (cycle) => {
+            const reqCol = collection(db, "feedbackRequests");
+            const totalA = query(reqCol, where("cycleId", "==", cycle.id));
+            const totalB = query(reqCol, where("reviewCycleId", "==", cycle.id));
+            const completedA = query(reqCol, where("cycleId", "==", cycle.id), where("status", "==", COMPLETED));
+            const completedB = query(reqCol, where("reviewCycleId", "==", cycle.id), where("status", "==", COMPLETED));
+            const pendingA = query(reqCol, where("cycleId", "==", cycle.id), where("status", "==", PENDING));
+            const pendingB = query(reqCol, where("reviewCycleId", "==", cycle.id), where("status", "==", PENDING));
+            const [t1, t2, c1, c2, p1, p2] = await Promise.all([
+              countDocs(totalA).catch(() => 0),
+              countDocs(totalB).catch(() => 0),
+              countDocs(completedA).catch(() => 0),
+              countDocs(completedB).catch(() => 0),
+              countDocs(pendingA).catch(() => 0),
+              countDocs(pendingB).catch(() => 0),
+            ]);
+
+            const total = t1 + t2;
+            const completed = c1 + c2;
+            const pending = p1 + p2;
+            const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            results[cycle.id] = { total, pending, completed, progressPct };
+          })
+        );
+
+        if (!cancelled) setStatsByCycle(results);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
     };
 
-    setCycles((prev) => [...prev, newCycle]);
-    setShowCreateModal(false);
-    setNewCycleForm({
-      title: "",
-      type: "Quarterly Review",
-      startDate: "",
-      endDate: "",
-    });
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [cycles]);
+
+  const handleCreateCycle = async () => {
+    setCreateErr(null);
+
+    const name = newName.trim();
+    if (!name) return setCreateErr("Cycle name is required.");
+    if (!newStart) return setCreateErr("Start date is required.");
+    if (!newEnd) return setCreateErr("End date is required.");
+
+    const start = new Date(newStart);
+    const end = new Date(newEnd);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return setCreateErr("Invalid date.");
+    if (end < start) return setCreateErr("End date must be after start date.");
+
+    setCreateBusy(true);
+    try {
+      await addDoc(collection(db, "reviewCycles"), {
+        name,
+        type: newType,
+        status: "active",
+        startDate: Timestamp.fromDate(start),
+        endDate: Timestamp.fromDate(end),
+        createdAt: Timestamp.now(),
+      });
+
+      setOpenCreate(false);
+      setNewName("");
+      setNewType("Quarterly Review");
+      setNewStart("");
+      setNewEnd("");
+    } catch (e: any) {
+      setCreateErr(e?.message || "Failed to create review cycle");
+    } finally {
+      setCreateBusy(false);
+    }
   };
 
-  const activeCycles = cycles.filter((c) => c.status === "active");
-  const scheduledCycles = cycles.filter((c) => c.status === "scheduled");
+  const handleCloseCycle = async (cycle: ReviewCycle) => {
+    const ok = window.confirm(
+      `Close cycle "${cycle.name}"?\n\nThis will delete:\n- the review cycle\n- ALL feedbackRequests linked to it\n\nThis cannot be undone.`
+    );
+    if (!ok) return;
+
+    setCloseErr(null);
+    setClosingId(cycle.id);
+
+    try {
+      const deletedCount = await deleteFeedbackRequestsForCycle(cycle.id);
+      await deleteDoc(doc(db, "reviewCycles", cycle.id));
+      console.log(`Closed cycle ${cycle.id}. Deleted ${deletedCount} feedbackRequests.`);
+    } catch (e: any) {
+      setCloseErr(e?.message || "Failed to close cycle");
+    } finally {
+      setClosingId(null);
+    }
+  };
+
+  const activeCycles = useMemo(() => cycles, [cycles]);
 
   return (
-    <div className="p-6 space-y-8">
-      {/* HEADER */}
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Review Cycle Management</h1>
-          <p className="text-sm text-gray-500">
-            Manage performance review cycles
-          </p>
+          <p className="text-sm text-gray-500">Manage performance review cycles</p>
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          onClick={() => setOpenCreate(true)}
+          className="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700"
         >
           + New Cycle
         </button>
       </div>
 
-      {/* ACTIVE CYCLES */}
-      <div className="space-y-6">
-        <h2 className="text-lg font-semibold">Active Cycles</h2>
+      {loading && <div className="text-sm text-gray-500">Loading cycles…</div>}
+      {err && <div className="text-sm text-red-600">{err}</div>}
+      {closeErr && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {closeErr}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <h2 className="font-semibold">Active Cycles</h2>
 
         {activeCycles.map((cycle) => {
-          const progress =
-            cycle.participants && cycle.completed
-              ? Math.round((cycle.completed / cycle.participants) * 100)
-              : 0;
+          const stats = statsByCycle[cycle.id] ?? {
+            total: 0,
+            pending: 0,
+            completed: 0,
+            progressPct: 0,
+          };
+
+          const isClosing = closingId === cycle.id;
 
           return (
-            <div
-              key={cycle.id}
-              className="bg-white border rounded-2xl p-6 space-y-6"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold">{cycle.title}</h3>
-                  <span className="bg-green-100 text-green-600 text-xs px-2 py-0.5 rounded-full">
-                    active
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                  <Calendar size={14} />
-                  <span>
-                    {cycle.startDate} - {cycle.endDate}
-                  </span>
-                  <span>•</span>
-                  <span>{cycle.type}</span>
+            <div key={cycle.id} className="rounded-xl border bg-white p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">{cycle.name}</h3>
+                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+                      active
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    {formatDate(cycle.startDate)} - {formatDate(cycle.endDate)} • {cycle.type}
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <p className="text-sm text-gray-500">Participants</p>
-                  <p className="text-2xl font-semibold">{cycle.participants}</p>
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <div className="text-xs text-gray-500">Assigned (Total Requests)</div>
+                  <div className="text-xl font-semibold">{stats.total}</div>
                 </div>
 
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <p className="text-sm text-gray-500">Completed</p>
-                  <p className="text-2xl font-semibold">{cycle.completed}</p>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <div className="text-xs text-gray-500">Pending</div>
+                  <div className="text-xl font-semibold">{stats.pending}</div>
                 </div>
 
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <p className="text-sm text-gray-500">Progress</p>
-                  <p className="text-2xl font-semibold">{progress}%</p>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <div className="text-xs text-gray-500">Completed</div>
+                  <div className="text-xl font-semibold">{stats.completed}</div>
                 </div>
               </div>
 
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-green-500 h-2 rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Progress</span>
+                  <span className="font-semibold">{stats.progressPct}%</span>
+                </div>
+
+                <div className="mt-2 h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className="h-full bg-green-500"
+                    style={{ width: `${Math.min(100, Math.max(0, stats.progressPct))}%` }}
+                  />
+                </div>
+
+                <div className="mt-2 text-xs text-gray-500">
+                  {statsLoading ? "Updating stats…" : "Progress is based on pending vs completed feedbackRequests (per cycle)."}
+                </div>
               </div>
 
-              <div className="flex gap-3">
-                <button className="border px-4 py-2 rounded-lg hover:bg-gray-100">
-                  ✏️ Edit
-                </button>
+              <div className="mt-4 flex items-center gap-3">
+                <button className="text-sm text-blue-600 hover:underline">Edit</button>
 
                 <button
-                  onClick={() => setConfirmCloseId(cycle.id)}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                  onClick={() => handleCloseCycle(cycle)}
+                  disabled={isClosing}
+                  className="text-sm text-white bg-red-600 hover:bg-red-700 rounded-md px-3 py-1.5 disabled:opacity-60"
                 >
-                  ⏹ Close Cycle
+                  {isClosing ? "Closing…" : "Close Cycle"}
                 </button>
               </div>
             </div>
           );
         })}
+
+        {!loading && activeCycles.length === 0 && (
+          <div className="text-sm text-gray-500">No active review cycles found.</div>
+        )}
       </div>
 
-      {/* SCHEDULED CYCLES */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Scheduled Cycles</h2>
-
-        {scheduledCycles.map((cycle) => (
-          <div
-            key={cycle.id}
-            className="bg-white border rounded-2xl p-5 flex justify-between items-center"
-          >
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{cycle.title}</h3>
-                <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
-                  scheduled
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                <Calendar size={14} />
-                <span>
-                  {cycle.startDate} - {cycle.endDate}
-                </span>
-                <span>•</span>
-                <span>{cycle.type}</span>
-              </div>
+      {/* Create Modal */}
+      {openCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Create Review Cycle</h3>
+              <button onClick={() => setOpenCreate(false)} className="text-gray-500 hover:text-gray-700">
+                ✕
+              </button>
             </div>
 
-            <button
-              onClick={() => handleActivateCycle(cycle.id)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-            >
-              <Play size={16} />
-              Activate
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* CREATE CYCLE MODAL */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-[420px] space-y-6">
-            <h2 className="text-lg font-semibold">Create Review Cycle</h2>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">
-                Cycle Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., Q1 2025 Performance Review"
-                value={newCycleForm.title}
-                onChange={(e) =>
-                  setNewCycleForm({ ...newCycleForm, title: e.target.value })
-                }
-                className="w-full border rounded-lg px-3 py-2"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">
-                Cycle Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={newCycleForm.type}
-                onChange={(e) =>
-                  setNewCycleForm({ ...newCycleForm, type: e.target.value })
-                }
-                className="w-full border rounded-lg px-3 py-2"
-              >
-                <option>Quarterly Review</option>
-                <option>Annual Review</option>
-                <option>360 Feedback</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">
-                  Start Date <span className="text-red-500">*</span>
-                </label>
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="text-sm font-medium">Cycle Name *</label>
                 <input
-                  type="date"
-                  value={newCycleForm.startDate}
-                  onChange={(e) =>
-                    setNewCycleForm({
-                      ...newCycleForm,
-                      startDate: e.target.value,
-                    })
-                  }
-                  className="w-full border rounded-lg px-3 py-2"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  placeholder="e.g., Q1 2025 Performance Review"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium">
-                  End Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={newCycleForm.endDate}
-                  onChange={(e) =>
-                    setNewCycleForm({
-                      ...newCycleForm,
-                      endDate: e.target.value,
-                    })
-                  }
-                  className="w-full border rounded-lg px-3 py-2"
-                />
+              <div>
+                <label className="text-sm font-medium">Cycle Type *</label>
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                >
+                  <option>Quarterly Review</option>
+                  <option>Annual Review</option>
+                  <option>360 Feedback</option>
+                </select>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Start Date *</label>
+                  <input
+                    type="date"
+                    value={newStart}
+                    onChange={(e) => setNewStart(e.target.value)}
+                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">End Date *</label>
+                  <input
+                    type="date"
+                    value={newEnd}
+                    onChange={(e) => setNewEnd(e.target.value)}
+                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              {createErr && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {createErr}
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => setShowCreateModal(false)}
-                className="border px-4 py-2 rounded-lg hover:bg-gray-100"
+                onClick={() => setOpenCreate(false)}
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+                disabled={createBusy}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateCycle}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+                disabled={createBusy}
               >
-                Create Cycle
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CLOSE CONFIRMATION MODAL */}
-      {confirmCloseId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-[400px] space-y-4">
-            <h2 className="text-lg font-semibold">Close Review Cycle</h2>
-            <p className="text-sm text-gray-600">
-              Are you sure you want to close this review cycle? This action
-              cannot be undone.
-            </p>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmCloseId(null)}
-                className="border px-4 py-2 rounded-lg hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCloseCycle}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-              >
-                Yes, Close
+                {createBusy ? "Creating…" : "Create Cycle"}
               </button>
             </div>
           </div>

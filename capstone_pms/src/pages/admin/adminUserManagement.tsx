@@ -1,174 +1,163 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MoreVertical, Search, X } from "lucide-react";
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  doc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../../firebase";
+import { writeAuditLog } from "../../utils/writeAuditLogs"; // <- you already created this
+import { adminCreateAuthUser } from "../../utils/adminCreateUser";
 
-type User = {
-  id: number;
+type Role = "Employee" | "Manager" | "HR" | "Admin";
+
+type UserRow = {
+  id: string; // uid
   name: string;
   email: string;
-  role: "Employee" | "Manager" | "HR" | "Admin";
+  role: Role;
   department: string;
   status: "Active" | "Inactive";
   initials: string;
 };
 
-const initialUsers: User[] = [
-  {
-    id: 1,
-    name: "Sarah Johnson",
-    email: "sarah.johnson@company.com",
-    role: "Employee",
-    department: "Engineering",
-    status: "Active",
-    initials: "SJ",
-  },
-  {
-    id: 2,
-    name: "Michael Chen",
-    email: "michael.chen@company.com",
-    role: "Manager",
-    department: "Engineering",
-    status: "Active",
-    initials: "MC",
-  },
-  {
-    id: 3,
-    name: "Emily Rodriguez",
-    email: "emily.rodriguez@company.com",
-    role: "HR",
-    department: "Human Resources",
-    status: "Active",
-    initials: "ER",
-  },
-  {
-    id: 4,
-    name: "David Kim",
-    email: "david.kim@company.com",
-    role: "Admin",
-    department: "IT",
-    status: "Active",
-    initials: "DK",
-  },
-];
-
-const roleColor = {
+const roleColor: Record<Role, string> = {
   Employee: "bg-blue-100 text-blue-600",
   Manager: "bg-indigo-100 text-indigo-600",
   HR: "bg-purple-100 text-purple-600",
   Admin: "bg-gray-200 text-gray-700",
 };
 
-
 const AdminUserManagement = () => {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "",
     email: "",
-    role: "Employee",
+    password: "",
+    role: "Employee" as Role,
     department: "",
   });
 
-  const handleAddUser = () => {
-    if (!form.name || !form.email || !form.department) return;
+  // Load users from Firestore
+  useEffect(() => {
+    const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      const list: UserRow[] = snap.docs.map((d) => {
+        const data: any = d.data();
+        return {
+          id: d.id,
+          name: data.name ?? "—",
+          email: data.email ?? "—",
+          role: (data.role ?? "Employee") as Role,
+          department: data.department ?? "—",
+          status: (data.status ?? "Active") as "Active" | "Inactive",
+          initials: data.initials ?? "—",
+        };
+      });
+      setUsers(list);
+    });
 
-    const initials = form.name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+    return () => unsub();
+  }, []);
 
-    setUsers([
-      ...users,
-      {
-        id: users.length + 1,
-        name: form.name,
-        email: form.email,
-        role: form.role as User["role"],
-        department: form.department,
-        status: "Active",
-        initials,
-      },
-    ]);
+  const filteredUsers = users.filter((u) =>
+    `${u.name} ${u.email}`.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-    setForm({ name: "", email: "", role: "Employee", department: "" });
-    setIsOpen(false);
+  const resetForm = () => {
+    setForm({ name: "", email: "", password: "", role: "Employee", department: "" });
+    setFormError(null);
+    setSubmitting(false);
   };
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const handleCreateUser = async () => {
+    setFormError(null);
 
-  const filteredUsers = users.filter((user) =>
-  `${user.name} ${user.email}`
-    .toLowerCase()
-    .includes(searchTerm.toLowerCase())
-  
-);
+    const name = form.name.trim();
+    const email = form.email.trim().toLowerCase();
+    const password = form.password;
+    const department = form.department.trim();
+    const role = form.role;
 
-const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-const [editingUser, setEditingUser] = useState<User | null>(null);
+    if (!name || !email || !password || !department) {
+      setFormError("Please fill in name, email, password, and department.");
+      return;
+    }
 
+    if (password.length < 6) {
+      setFormError("Password must be at least 6 characters.");
+      return;
+    }
 
-const handleSaveUser = () => {
-  if (!form.name || !form.email || !form.department) return;
+    setSubmitting(true);
 
-  const initials = form.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
+    try {
+      // 1) Create Auth user (secondary auth so admin stays logged in)
+      const newUser = await adminCreateAuthUser(email, password);
 
-  if (editingUser) {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === editingUser.id
-          ? {
-              ...u,
-              name: form.name,
-              email: form.email,
-              role: form.role as User["role"],
-              department: form.department,
-              initials,
-            }
-          : u
-      )
-    );
-  } else {
-    setUsers((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        name: form.name,
-        email: form.email,
-        role: form.role as User["role"],
-        department: form.department,
+      const initials = name
+        .split(" ")
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase();
+
+      // 2) Create Firestore user profile doc keyed by UID
+      await setDoc(doc(db, "users", newUser.uid), {
+        uid: newUser.uid,
+        name,
+        email,
+        role,
+        department,
         status: "Active",
         initials,
-      },
-    ]);
-  }
+        createdAt: serverTimestamp(),
+      });
 
-  setForm({ name: "", email: "", role: "Employee", department: "" });
-  setEditingUser(null);
-  setIsOpen(false);
-};
+      // 3) Audit log
+      await writeAuditLog({
+        action: "USER_CREATED",
+        details: `Created new user account: ${email}`,
+        meta: {
+          createdUser: {
+            name,
+            email,
+            password, // ⚠️ demo only
+            role,
+            department,
+          },
+        },
+      });
 
-const handleEdit = (user: User) => {
-  setForm({
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    department: user.department,
-  });
-  setEditingUser(user);
-  setIsOpen(true);
-  setOpenMenuId(null);
-};
+      // Done
+      setIsOpen(false);
+      resetForm();
+    } catch (e: any) {
+      // Common Firebase auth errors
+      const msg =
+        e?.code === "auth/email-already-in-use"
+          ? "This email is already in use."
+          : e?.code === "auth/invalid-email"
+          ? "Invalid email."
+          : e?.code === "auth/weak-password"
+          ? "Password is too weak."
+          : e?.message || "Failed to create user.";
 
-const handleDelete = (id: number) => {
-  setUsers((prev) => prev.filter((u) => u.id !== id));
-  setOpenMenuId(null);
-};
-
+      setFormError(msg);
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -182,7 +171,10 @@ const handleDelete = (id: number) => {
         </div>
 
         <button
-          onClick={() => setIsOpen(true)}
+          onClick={() => {
+            resetForm();
+            setIsOpen(true);
+          }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           + New User
@@ -201,10 +193,7 @@ const handleDelete = (id: number) => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <p className="text-sm text-gray-500">
-            {filteredUsers.length} users found
-         </p>
-
+        <p className="text-sm text-gray-500">{filteredUsers.length} users found</p>
       </div>
 
       {/* Table */}
@@ -220,6 +209,7 @@ const handleDelete = (id: number) => {
               <th className="text-center px-4 py-3">Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {filteredUsers.map((user) => (
               <tr key={user.id} className="border-b last:border-none">
@@ -229,16 +219,22 @@ const handleDelete = (id: number) => {
                   </div>
                   <span className="font-medium">{user.name}</span>
                 </td>
+
                 <td className="px-4 py-3">{user.email}</td>
+
                 <td className="px-4 py-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${roleColor[user.role]}`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${roleColor[user.role]}`}
+                  >
                     {user.role}
                   </span>
                 </td>
+
                 <td className="px-4 py-3">{user.department}</td>
+
                 <td className="px-4 py-3">
                   <span className="bg-green-100 text-green-600 px-3 py-1 rounded-full text-xs font-medium">
-                    Active
+                    {user.status}
                   </span>
                 </td>
 
@@ -248,6 +244,7 @@ const handleDelete = (id: number) => {
                       setOpenMenuId(openMenuId === user.id ? null : user.id)
                     }
                     className="inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
+                    aria-label="Actions"
                   >
                     <MoreVertical size={18} />
                   </button>
@@ -255,24 +252,24 @@ const handleDelete = (id: number) => {
                   {openMenuId === user.id && (
                     <div className="absolute right-4 mt-2 w-32 bg-white border rounded-lg shadow-lg z-10">
                       <button
-                        onClick={() => handleEdit(user)}
+                        onClick={() => setOpenMenuId(null)}
                         className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                       >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                      >
-                        Delete
+                        Close
                       </button>
                     </div>
                   )}
                 </td>
-
-
               </tr>
             ))}
+
+            {filteredUsers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No users found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -282,14 +279,23 @@ const handleDelete = (id: number) => {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">
-                {editingUser ? "Edit User" : "Add New User"}
-              </h2>
-              <button onClick={() => setIsOpen(false)}>
+              <h2 className="text-lg font-semibold">Add New User</h2>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  resetForm();
+                }}
+                aria-label="Close"
+              >
                 <X />
               </button>
             </div>
 
+            {formError && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                {formError}
+              </div>
+            )}
 
             <input
               placeholder="Full Name"
@@ -305,15 +311,23 @@ const handleDelete = (id: number) => {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
 
+            <input
+              placeholder="Password"
+              type="text"
+              className="w-full border rounded-lg px-3 py-2"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+
             <select
               className="w-full border rounded-lg px-3 py-2"
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
             >
-              <option>Employee</option>
-              <option>Manager</option>
-              <option>HR</option>
-              <option>Admin</option>
+              <option value="Employee">Employee</option>
+              <option value="Manager">Manager</option>
+              <option value="HR">HR</option>
+              <option value="Admin">Admin</option>
             </select>
 
             <input
@@ -323,18 +337,24 @@ const handleDelete = (id: number) => {
               onChange={(e) => setForm({ ...form, department: e.target.value })}
             />
 
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-2">
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  resetForm();
+                }}
                 className="px-4 py-2 border rounded-lg"
+                disabled={submitting}
               >
                 Cancel
               </button>
+
               <button
-                onClick={handleSaveUser}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                onClick={handleCreateUser}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-60"
+                disabled={submitting}
               >
-                Add User
+                {submitting ? "Creating..." : "Add User"}
               </button>
             </div>
           </div>
