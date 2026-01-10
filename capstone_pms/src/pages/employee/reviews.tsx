@@ -8,23 +8,19 @@ import {
   Star,
   CheckCircle,
 } from "lucide-react";
-
 import { useAuth } from "../../contexts/AuthContext";
 import { resolveEmployeeId } from "../../utils/resolveEmployeeId";
 import { db } from "../../firebase";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  Timestamp,
-} from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 
-type FeedbackHighlight = {
-  category?: string;
-  score?: number; // 0-5
-  feedback?: string;
-};
+type Ratings =
+  | {
+      technical?: number;
+      collaboration?: number;
+      leadership?: number;
+      communication?: number;
+    }
+  | Record<string, number | undefined>;
 
 type PerformanceReviewDoc = {
   id: string;
@@ -34,15 +30,16 @@ type PerformanceReviewDoc = {
   createdAt?: any;
   feedback360?: {
     totalResponses?: number;
-    highlights?: FeedbackHighlight[];
+    highlights?: any[];
   };
-
   managerEvaluation?: {
     summary?: string;
     strengths?: string[];
     areasForDevelopment?: string[];
+    goalsNextPeriod?: string[];
+    ratings?: Ratings;
   };
-
+  ratings?: Ratings;
   previousReviews?: { period?: string; outcome?: string }[];
 };
 
@@ -59,7 +56,6 @@ function formatDate(v: any): string {
 
 function outcomeBadge(outcome?: string) {
   const v = (outcome || "").toLowerCase();
-
   if (v.includes("outstanding"))
     return "bg-purple-100 text-purple-700 border-purple-200";
   if (v.includes("exceeds"))
@@ -70,7 +66,6 @@ function outcomeBadge(outcome?: string) {
     return "bg-yellow-100 text-yellow-800 border-yellow-200";
   if (v.includes("unsatisfactory"))
     return "bg-red-100 text-red-700 border-red-200";
-
   return "bg-gray-100 text-gray-700 border-gray-200";
 }
 
@@ -80,10 +75,10 @@ function safeScore(n: any) {
   return Math.max(0, Math.min(5, x));
 }
 
-function calcAverageScore(highlights: FeedbackHighlight[]) {
-  if (!highlights.length) return 0;
-  const sum = highlights.reduce((a, h) => a + safeScore(h.score), 0);
-  return sum / highlights.length;
+function calcAverageScore(values: number[]) {
+  if (!values.length) return 0;
+  const sum = values.reduce((a, b) => a + safeScore(b), 0);
+  return sum / values.length;
 }
 
 function stars(scoreOutOf5: number) {
@@ -103,14 +98,33 @@ function stars(scoreOutOf5: number) {
   });
 }
 
+function buildHighlightsFromRatings(ratings?: Ratings) {
+  if (!ratings) return [];
+  const technical = (ratings as any).technical;
+  const collaboration = (ratings as any).collaboration;
+  const leadership = (ratings as any).leadership;
+  const communication = (ratings as any).communication;
+  const items = [
+    { key: "technical", label: "Technical Excellence", score: technical },
+    { key: "collaboration", label: "Collaboration", score: collaboration },
+    { key: "leadership", label: "Leadership", score: leadership },
+    { key: "communication", label: "Communication", score: communication },
+  ];
+  return items
+    .filter((x) => Number.isFinite(Number(x.score)))
+    .map((x) => ({
+      category: x.label,
+      score: safeScore(x.score),
+      feedback: "",
+    }));
+}
+
 const EmployeePerformanceReview = () => {
   const { user } = useAuth();
-
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<PerformanceReviewDoc[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
-
-  const [expanded, setExpanded] = useState<string | null>("feedback"); // default open like figma
+  const [expanded, setExpanded] = useState<string | null>("feedback");
 
   useEffect(() => {
     let mounted = true;
@@ -121,12 +135,8 @@ const EmployeePerformanceReview = () => {
 
         setLoading(true);
         const employeeId = await resolveEmployeeId(user);
-
         const snap = await getDocs(
-          query(
-            collection(db, "performanceReviews"),
-            where("employeeId", "==", employeeId)
-          )
+          query(collection(db, "performanceReviews"), where("employeeId", "==", employeeId))
         );
 
         const list: PerformanceReviewDoc[] = snap.docs.map((d) => ({
@@ -173,8 +183,15 @@ const EmployeePerformanceReview = () => {
     return reviews.find((r) => r.period === selectedPeriod) || reviews[0] || null;
   }, [reviews, selectedPeriod]);
 
-  const highlights = current?.feedback360?.highlights || [];
-  const avg = useMemo(() => calcAverageScore(highlights), [highlights]);
+  const ratings: Ratings | undefined =
+    current?.managerEvaluation?.ratings || current?.ratings;
+
+  const highlights = useMemo(() => buildHighlightsFromRatings(ratings), [ratings]);
+
+  const avg = useMemo(
+    () => calcAverageScore(highlights.map((h: any) => h.score)),
+    [highlights]
+  );
   const avgText = `${avg.toFixed(2)}/5.00`;
 
   const history = useMemo(() => {
@@ -189,9 +206,7 @@ const EmployeePerformanceReview = () => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Performance Review</h1>
-          <p className="text-gray-600 mt-1">
-            View your performance summary and feedback
-          </p>
+          <p className="text-gray-600 mt-1">View your performance summary and feedback</p>
         </div>
 
         <select
@@ -219,15 +234,9 @@ const EmployeePerformanceReview = () => {
           </div>
 
           <div>
-            <div className="text-white/85 text-sm mb-1">
-              Overall Performance Rating
-            </div>
-            <div className="text-3xl font-semibold">
-              {current?.overallOutcome || "—"}
-            </div>
-            <div className="text-white/85 text-sm mt-3">
-              Review Period: {selectedPeriod}
-            </div>
+            <div className="text-white/85 text-sm mb-1">Overall Performance Rating</div>
+            <div className="text-3xl font-semibold">{current?.overallOutcome || "—"}</div>
+            <div className="text-white/85 text-sm mt-3">Review Period: {selectedPeriod}</div>
           </div>
         </div>
       </Card>
@@ -241,11 +250,7 @@ const EmployeePerformanceReview = () => {
             <Users className="size-6 text-blue-600 mt-0.5" />
             <div className="text-left">
               <h2 className="text-lg font-semibold">360 Feedback Summary</h2>
-              <p className="text-gray-600 text-sm mt-1">
-                {current?.feedback360?.totalResponses
-                  ? `${current.feedback360.totalResponses} responses collected`
-                  : "No feedback collected yet"}
-              </p>
+              <p className="text-gray-600 text-sm mt-1">Summary ratings for this period</p>
             </div>
           </div>
 
@@ -260,11 +265,11 @@ const EmployeePerformanceReview = () => {
           <div className="px-6 pb-6 space-y-3">
             {highlights.length === 0 ? (
               <div className="text-sm text-gray-500">
-                Feedback data will appear here once available.
+                No ratings available yet for this period.
               </div>
             ) : (
               <>
-                {highlights.map((h, idx) => (
+                {highlights.map((h: any, idx: number) => (
                   <div
                     key={`${h.category || "item"}-${idx}`}
                     className="border border-gray-200 rounded-xl p-4 bg-white"
@@ -274,15 +279,13 @@ const EmployeePerformanceReview = () => {
                         <div className="font-semibold text-sm text-gray-900">
                           {h.category || "Category"}
                         </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          {h.feedback || "—"}
-                        </div>
+                        {h.feedback ? (
+                          <div className="text-sm text-gray-600 mt-1">{h.feedback}</div>
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <div className="flex items-center gap-0.5">
-                          {stars(safeScore(h.score))}
-                        </div>
+                        <div className="flex items-center gap-0.5">{stars(safeScore(h.score))}</div>
                         <div className="text-sm text-gray-700">
                           {safeScore(h.score).toFixed(1)}/5.0
                         </div>
@@ -292,12 +295,8 @@ const EmployeePerformanceReview = () => {
                 ))}
 
                 <div className="border border-blue-200 bg-blue-50 rounded-xl p-4">
-                  <div className="text-sm text-blue-700">
-                    Average 360 Score
-                  </div>
-                  <div className="text-lg font-semibold text-blue-700 mt-1">
-                    {avgText}
-                  </div>
+                  <div className="text-sm text-blue-700">Average Score</div>
+                  <div className="text-lg font-semibold text-blue-700 mt-1">{avgText}</div>
                 </div>
               </>
             )}
@@ -314,9 +313,7 @@ const EmployeePerformanceReview = () => {
             <TrendingUp className="size-6 text-green-600 mt-0.5" />
             <div className="text-left">
               <h2 className="text-lg font-semibold">Manager Evaluation</h2>
-              <p className="text-gray-600 text-sm mt-1">
-                Direct manager&apos;s assessment
-              </p>
+              <p className="text-gray-600 text-sm mt-1">Direct manager&apos;s assessment</p>
             </div>
           </div>
 
@@ -334,9 +331,7 @@ const EmployeePerformanceReview = () => {
             </div>
 
             <div>
-              <div className="font-semibold text-gray-900 mb-2">
-                Top Strengths
-              </div>
+              <div className="font-semibold text-gray-900 mb-2">Top Strengths</div>
               <ul className="space-y-2">
                 {(current?.managerEvaluation?.strengths || []).length ? (
                   current!.managerEvaluation!.strengths!.map((s, i) => (
@@ -352,9 +347,7 @@ const EmployeePerformanceReview = () => {
             </div>
 
             <div>
-              <div className="font-semibold text-gray-900 mb-2">
-                Areas for Development
-              </div>
+              <div className="font-semibold text-gray-900 mb-2">Areas for Development</div>
               <ul className="list-disc pl-5 space-y-1">
                 {(current?.managerEvaluation?.areasForDevelopment || []).length ? (
                   current!.managerEvaluation!.areasForDevelopment!.map((s, i) => (
@@ -366,9 +359,7 @@ const EmployeePerformanceReview = () => {
               </ul>
             </div>
 
-            <div className="text-xs text-gray-500">
-              Created: {formatDate(current?.createdAt)}
-            </div>
+            <div className="text-xs text-gray-500">Created: {formatDate(current?.createdAt)}</div>
           </div>
         )}
       </Card>
@@ -377,9 +368,7 @@ const EmployeePerformanceReview = () => {
         <h2 className="text-lg font-semibold mb-4">Performance History</h2>
 
         {history.length === 0 ? (
-          <div className="text-sm text-gray-500">
-            No historical performance records found.
-          </div>
+          <div className="text-sm text-gray-500">No historical performance records found.</div>
         ) : (
           <div className="space-y-3">
             {history.map((h, idx) => (
@@ -387,15 +376,9 @@ const EmployeePerformanceReview = () => {
                 key={`${h.period}-${idx}`}
                 className="border border-gray-200 rounded-xl p-4 flex items-center justify-between"
               >
-                <div className="text-sm font-semibold text-gray-900">
-                  {h.period}
-                </div>
+                <div className="text-sm font-semibold text-gray-900">{h.period}</div>
 
-                <span
-                  className={`text-xs px-3 py-1 rounded-full border ${outcomeBadge(
-                    h.outcome
-                  )}`}
-                >
+                <span className={`text-xs px-3 py-1 rounded-full border ${outcomeBadge(h.outcome)}`}>
                   {h.outcome}
                 </span>
               </div>

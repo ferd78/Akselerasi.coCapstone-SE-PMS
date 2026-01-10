@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@heroui/react";
 import { Target, ChevronDown, ChevronUp, CheckCircle } from "lucide-react";
-
 import { useAuth } from "../../contexts/AuthContext";
 import { resolveEmployeeId } from "../../utils/resolveEmployeeId";
 import { db } from "../../firebase";
@@ -33,38 +32,27 @@ type FocusArea = {
 };
 
 type DevPlan = {
-  id: string; // firestore doc id (dp_emp1)
-  employeeId: string; // emp1
+  id: string;
+  employeeId: string;
   employeeName?: string;
   status?: string;
   createdDate?: any;
   lastUpdated?: any;
-
-  // ✅ IMPORTANT: your DB stores arrays in the SAME DOC
   focusAreas?: FocusArea[];
 };
 
 function formatDate(v: any): string {
   if (!v) return "—";
-
-  // Firestore Timestamp
   if (typeof v?.toDate === "function") return v.toDate().toLocaleDateString();
-
-  // Sometimes Timestamp-like { seconds }
   if (typeof v?.seconds === "number") {
     const d = new Date(v.seconds * 1000);
     return isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
   }
-
-  // String ISO or yyyy-mm-dd
   if (typeof v === "string") {
     const d = new Date(v);
     return isNaN(d.getTime()) ? v : d.toLocaleDateString();
   }
-
-  // Date
   if (v instanceof Date) return v.toLocaleDateString();
-
   return "—";
 }
 
@@ -115,7 +103,6 @@ function itemProgress(ai: ActionItem): number {
 
 const EmployeeDevelopmentPlan = () => {
   const { user } = useAuth();
-
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<DevPlan | null>(null);
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
@@ -123,12 +110,9 @@ const EmployeeDevelopmentPlan = () => {
 
   useEffect(() => {
     let mounted = true;
-
     const fetchPlan = async () => {
       if (!user) return;
-
       setLoading(true);
-
       try {
         const employeeId = await resolveEmployeeId(user); // should be legacyId like "emp1"
         if (!employeeId) {
@@ -139,22 +123,17 @@ const EmployeeDevelopmentPlan = () => {
           return;
         }
 
-        // ✅ 1) Prefer exact doc id: dp_emp1
         const expectedDocId = `dp_${employeeId}`;
         const exactSnap = await getDoc(doc(db, "developmentPlans", expectedDocId));
-
         let planDocId: string | null = null;
         let planData: any = null;
-
         if (exactSnap.exists()) {
           planDocId = exactSnap.id;
           planData = exactSnap.data();
         } else {
-          // ✅ 2) Fallback: query by employeeId
           const dpSnap = await getDocs(
             query(collection(db, "developmentPlans"), where("employeeId", "==", employeeId))
           );
-
           if (dpSnap.empty) {
             if (!mounted) return;
             setPlan(null);
@@ -162,12 +141,9 @@ const EmployeeDevelopmentPlan = () => {
             setExpandedArea(null);
             return;
           }
-
-          // Pick active if exists, else first
           const picked =
             dpSnap.docs.find((d) => String((d.data() as any)?.status || "").toLowerCase() === "active") ??
             dpSnap.docs[0];
-
           planDocId = picked.id;
           planData = picked.data();
         }
@@ -184,7 +160,6 @@ const EmployeeDevelopmentPlan = () => {
           focusAreas: Array.isArray(planData?.focusAreas) ? planData.focusAreas : [],
         };
 
-        // ✅ Read focusAreas from the doc arrays (NOT subcollections)
         const rawFocusAreas = Array.isArray(resolvedPlan.focusAreas) ? resolvedPlan.focusAreas : [];
 
         const faList: FocusArea[] = rawFocusAreas.map((fa: any) => ({
@@ -205,7 +180,6 @@ const EmployeeDevelopmentPlan = () => {
             : [],
         }));
 
-        // Sort by priority: high -> medium -> low
         const priorityRank = (p?: string) => {
           const v = (p || "").toLowerCase();
           if (v === "high") return 1;

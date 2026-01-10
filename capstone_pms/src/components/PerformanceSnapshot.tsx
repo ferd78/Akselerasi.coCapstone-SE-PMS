@@ -15,6 +15,15 @@ import {
 import { CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
+type Ratings =
+  | {
+      technical?: number;
+      collaboration?: number;
+      leadership?: number;
+      communication?: number;
+    }
+  | Record<string, number | undefined>;
+
 type PerformanceReviewDoc = {
   employeeId: string;
   period?: string;
@@ -24,8 +33,10 @@ type PerformanceReviewDoc = {
     totalResponses?: number;
     highlights?: { category?: string; score?: number; feedback?: string }[];
   };
+  ratings?: Ratings;
   managerEvaluation?: {
     strengths?: string[];
+    ratings?: Ratings;
   };
 };
 
@@ -39,17 +50,6 @@ type ReviewSnapshotDoc = {
   createdAt?: any;
 };
 
-function toDateSafe(v: any): Date | null {
-  if (!v) return null;
-  if (v instanceof Timestamp) return v.toDate();
-  if (typeof v?.toDate === "function") return v.toDate();
-  if (typeof v === "string") {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  return null;
-}
-
 function outcomeBadgeClasses(outcome?: string) {
   const v = (outcome || "").toLowerCase();
   if (v.includes("exceed")) return "bg-blue-50 text-blue-700";
@@ -58,6 +58,33 @@ function outcomeBadgeClasses(outcome?: string) {
   if (v.includes("need")) return "bg-yellow-50 text-yellow-800";
   if (v.includes("unsatisfactory")) return "bg-red-50 text-red-700";
   return "bg-gray-100 text-gray-700";
+}
+
+function safeScore(n: any) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  return Math.max(0, Math.min(5, x));
+}
+
+function avgFromRatings(r?: Ratings | null): number | null {
+  if (!r) return null;
+  const values = Object.values(r)
+    .map((v) => safeScore(v))
+    .filter((v): v is number => typeof v === "number");
+
+  if (values.length === 0) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function avgFromHighlights(
+  highlights?: { score?: number | undefined }[] | null
+): number | null {
+  if (!highlights?.length) return null;
+  const values = highlights
+    .map((h) => safeScore(h.score))
+    .filter((v): v is number => typeof v === "number");
+  if (values.length === 0) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
 const PerformanceSnapshot = () => {
@@ -76,6 +103,7 @@ const PerformanceSnapshot = () => {
         if (!user) return;
 
         const employeeId = await resolveEmployeeId(user);
+
         const prQ = query(
           collection(db, "performanceReviews"),
           where("employeeId", "==", employeeId),
@@ -95,6 +123,7 @@ const PerformanceSnapshot = () => {
             )
           );
         }
+
         if (!mounted) return;
 
         if (!prSnap.empty) {
@@ -102,6 +131,7 @@ const PerformanceSnapshot = () => {
           setSnapshot(null);
           return;
         }
+
         const rsSnap = await getDocs(
           query(
             collection(db, "reviewSnapshots"),
@@ -140,17 +170,16 @@ const PerformanceSnapshot = () => {
     if (perfReview) {
       const outcome = perfReview.overallOutcome || "—";
       const period = perfReview.period || "—";
-      const scores = (perfReview.feedback360?.highlights || [])
-        .map((h) => (typeof h.score === "number" ? h.score : null))
-        .filter((x): x is number => x !== null);
-      const avg =
-        scores.length > 0
-          ? scores.reduce((a, b) => a + b, 0) / scores.length
-          : null;
+      const ratings =
+        perfReview.managerEvaluation?.ratings || perfReview.ratings || null;
+      const avgRatings = avgFromRatings(ratings);
+      const avgFallback = avgFromHighlights(perfReview.feedback360?.highlights || []);
+      const avg = avgRatings ?? avgFallback;
       const scoreText = avg === null ? "— / 5.0" : `${avg.toFixed(1)} / 5.0`;
       const barPct = avg === null ? 0 : Math.max(0, Math.min(100, (avg / 5) * 100));
       const strengthsRaw = perfReview.managerEvaluation?.strengths || [];
       const strengths = strengthsRaw.slice(0, 3);
+
       return {
         outcome,
         period,
@@ -195,10 +224,7 @@ const PerformanceSnapshot = () => {
     <Card className="p-6 border border-gray-200">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl">Performance Snapshot</h2>
-        <Link
-          to="/employee/performance"
-          className="text-sm text-blue-600 hover:underline"
-        >
+        <Link to="/employee/performance" className="text-sm text-blue-600 hover:underline">
           Full review
         </Link>
       </div>
@@ -213,21 +239,16 @@ const PerformanceSnapshot = () => {
         <div className="text-sm">
           <div className="flex items-center justify-between">
             <div className="font-medium">Overall Rating</div>
-            <span
-              className={`text-xs px-3 py-1 rounded-full ${outcomeBadgeClasses(
-                viewModel.outcome
-              )}`}
-            >
+            <span className={`text-xs px-3 py-1 rounded-full ${outcomeBadgeClasses(viewModel.outcome)}`}>
               {viewModel.outcome}
             </span>
           </div>
 
-          <div className="text-xs text-gray-500 mt-1">
-            Period: {viewModel.period}
-          </div>
+          <div className="text-xs text-gray-500 mt-1">Period: {viewModel.period}</div>
+
           {viewModel.usesPerfReview ? (
             <>
-              <div className="mt-4 text-xs text-gray-600">360 Feedback Score</div>
+              <div className="mt-4 text-xs text-gray-600">Score</div>
 
               <div className="mt-2 flex items-center gap-3">
                 <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -259,9 +280,7 @@ const PerformanceSnapshot = () => {
               </div>
             </>
           ) : (
-            <div className="mt-4 text-gray-700">
-              Final Score: {viewModel.scoreText}
-            </div>
+            <div className="mt-4 text-gray-700">Final Score: {viewModel.scoreText}</div>
           )}
         </div>
       )}

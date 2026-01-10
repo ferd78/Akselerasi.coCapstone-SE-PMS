@@ -50,16 +50,12 @@ type FeedbackResponse = {
 
 const EmployeeFeedbackRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState<FeedbackRequest | null>(null);
-
   const [legacyId, setLegacyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
   const [requests, setRequests] = useState<FeedbackRequest[]>([]);
   const [responsesByRequestId, setResponsesByRequestId] =
     useState<Record<string, FeedbackResponse>>({});
-
   const [error, setError] = useState<string | null>(null);
-
   const [formData, setFormData] = useState({
     technicalSkills: "",
     collaboration: "",
@@ -109,7 +105,6 @@ const EmployeeFeedbackRequests = () => {
 
         const userDoc = usersSnap.docs[0];
         const data = userDoc.data() as any;
-
         const lid = data?.legacyId || data?.id || userDoc.id;
 
         if (!lid) {
@@ -142,7 +137,6 @@ const EmployeeFeedbackRequests = () => {
           return;
         }
 
-        // ✅ Requests where *I* am the reviewee (tasks assigned to be reviewed about me)
         const reqSnap = await getDocs(
           query(collection(db, "feedbackRequests"), where("revieweeId", "==", legacyId))
         );
@@ -167,7 +161,6 @@ const EmployeeFeedbackRequests = () => {
           return;
         }
 
-        // ✅ Responses related to me (so we can show completed details)
         const respSnap = await getDocs(
           query(collection(db, "feedbackResponses"), where("revieweeId", "==", legacyId))
         );
@@ -233,21 +226,18 @@ const EmployeeFeedbackRequests = () => {
         reviewerRole: selectedRequest.requestedByRole || "Peer",
         cycleType: selectedRequest.cycleType,
         submittedAt: serverTimestamp(),
-
         scores: {
           technical: formData.rating,
           collaboration: formData.rating,
           leadership: formData.rating,
           communication: formData.rating,
         },
-
         text: {
           technicalSkills: formData.technicalSkills,
           collaboration: formData.collaboration,
           leadership: formData.leadership,
           communication: formData.communication,
         },
-
         strengths: [formData.strengths],
         improvements: [formData.improvements],
         comment: formData.additionalComments || "",
@@ -418,7 +408,6 @@ const EmployeeFeedbackRequests = () => {
         <Card className="p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>
       )}
 
-      {/* Pending */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">
           Pending Requests ({loading ? "…" : pending.length})
@@ -477,7 +466,6 @@ const EmployeeFeedbackRequests = () => {
         )}
       </div>
 
-      {/* Completed */}
       <div className="space-y-3 pt-2">
         <h2 className="text-lg font-semibold">
           Completed ({loading ? "…" : completed.length})
@@ -492,10 +480,7 @@ const EmployeeFeedbackRequests = () => {
           <div className="space-y-3">
             {completed.map((req) => {
               const resp = responsesByRequestId[req.id];
-
-              // ✅ Title should be requester name (per your requirement)
               const completedTitle = req.requestedBy || req.employeeName;
-
               return (
                 <Card key={req.id} className="p-5">
                   <div className="flex items-start justify-between gap-4">
